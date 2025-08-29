@@ -1,7 +1,5 @@
-'use strict';
-const {
-  Model
-} = require('sequelize');
+"use strict";
+const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class CartItem extends Model {
     /**
@@ -10,18 +8,23 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      CartItem.belongsTo(models.Cart, { foreignKey: "cartId" });
+      CartItem.belongsTo(models.Product, { foreignKey: "productId" });
+      CartItem.belongsTo(models.CustomImage, { foreignKey: "customImageId" });
     }
   }
-  CartItem.init({
-    cartId: DataTypes.INTEGER,
-    productId: DataTypes.INTEGER,
-    customImageId: DataTypes.INTEGER,
-    quantity: DataTypes.INTEGER,
-    price: DataTypes.DECIMAL
-  }, {
-    sequelize,
-    modelName: 'CartItem',
-  });
+  CartItem.init(
+    {
+      cartId: DataTypes.INTEGER,
+      productId: DataTypes.INTEGER,
+      customImageId: DataTypes.INTEGER,
+      quantity: DataTypes.INTEGER,
+      price: DataTypes.DECIMAL,
+    },
+    {
+      sequelize,
+      modelName: "CartItem",
+    }
+  );
   return CartItem;
 };
