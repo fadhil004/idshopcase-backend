@@ -29,6 +29,14 @@ module.exports = {
         allowNull: false,
         defaultValue: "customer",
       },
+      resetPasswordToken: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
+      resetPasswordExpire: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,
@@ -39,10 +47,9 @@ module.exports = {
       },
     });
   },
+
   async down(queryInterface, Sequelize) {
     await queryInterface.dropTable("Users");
-    await queryInterface.sequelize.query(
-      'DROP TYPE IF EXISTS "enum_Users_role";'
-    );
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Users_role";');
   },
 };
