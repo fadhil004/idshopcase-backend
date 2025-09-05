@@ -2,21 +2,22 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Folder penyimpanan
-const uploadDir = path.join(__dirname, "../uploads/profile_pictures");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+function makeStorage(folderName, prefix) {
+  const uploadDir = path.join(__dirname, `../uploads/${folderName}`);
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `profile_${Date.now()}${ext}`);
-  },
-});
+  return multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${prefix}_${Date.now()}${ext}`);
+    },
+  });
+}
 
 const fileFilter = (req, file, cb) => {
   const allowed = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
@@ -26,6 +27,16 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-const upload = multer({ storage, fileFilter });
+// khusus profile picture
+const uploadProfile = multer({
+  storage: makeStorage("profile_pictures", "profile"),
+  fileFilter,
+});
 
-module.exports = upload;
+// khusus produk
+const uploadProduct = multer({
+  storage: makeStorage("products", "product"),
+  fileFilter,
+});
+
+module.exports = { uploadProfile, uploadProduct };
