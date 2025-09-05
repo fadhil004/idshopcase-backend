@@ -34,7 +34,7 @@ module.exports = {
       const match = await comparePassword(password, user.password);
       if (!match) return res.status(400).json({ message: "Wrong password" });
 
-      const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1d" });
+      const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30m" });
 
       return res.json({ message: "Login success", token });
     } catch (err) {
