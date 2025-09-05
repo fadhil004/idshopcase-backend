@@ -67,7 +67,8 @@ module.exports = {
       if (!user) return res.status(404).json({ message: "User not found" });
 
       const match = await comparePassword(oldPassword, user.password);
-      if (!match) return res.status(400).json({ message: "Wrong old password" });
+      if (!match)
+        return res.status(400).json({ message: "Wrong old password" });
 
       user.password = await hashPassword(newPassword);
       await user.save();
@@ -80,11 +81,24 @@ module.exports = {
 
   addAddress: async (req, res) => {
     try {
-      const { recipient_name, phone, province, city, district, sub_district, postal_code, details, is_primary } = req.body;
+      const {
+        recipient_name,
+        phone,
+        province,
+        city,
+        district,
+        sub_district,
+        postal_code,
+        details,
+        is_primary,
+      } = req.body;
 
       // kalau set primary, reset primary sebelumnya
       if (is_primary) {
-        await Address.update({ is_primary: false }, { where: { userId: req.user.id } });
+        await Address.update(
+          { is_primary: false },
+          { where: { userId: req.user.id } }
+        );
       }
 
       const newAddress = await Address.create({
@@ -109,7 +123,17 @@ module.exports = {
   updateAddress: async (req, res) => {
     try {
       const { id } = req.params;
-      const { recipient_name, phone, province, city, district, sub_district, postal_code, details, is_primary } = req.body;
+      const {
+        recipient_name,
+        phone,
+        province,
+        city,
+        district,
+        sub_district,
+        postal_code,
+        details,
+        is_primary,
+      } = req.body;
 
       const addr = await Address.findOne({
         where: { id, userId: req.user.id },
@@ -119,7 +143,10 @@ module.exports = {
       if (is_primary === true) {
         // kalau alamat ini SUDAH primary, tidak perlu reset
         if (!addr.is_primary) {
-          await Address.update({ is_primary: false }, { where: { userId: req.user.id } });
+          await Address.update(
+            { is_primary: false },
+            { where: { userId: req.user.id } }
+          );
           addr.is_primary = true;
         }
       } else if (is_primary === false) {
@@ -175,6 +202,66 @@ module.exports = {
       return res.json({ message: "Address deleted" });
     } catch (err) {
       return res.status(500).json({ error: err.message });
+    }
+  },
+
+  //Admin Panel
+  getAllUsers: async (req, res) => {
+    try {
+      const users = await User.findAll({
+        attributes: ["id", "name", "email", "phone", "role", "profile_picture"],
+      });
+      res.json(users);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  getUserById: async (req, res) => {
+    try {
+      const user = await User.findByPk(req.params.id, {
+        attributes: ["id", "name", "email", "phone", "role", "profile_picture"],
+      });
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json(user);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  updateUserByAdmin: async (req, res) => {
+    try {
+      const { name, email, phone, role } = req.body;
+      const user = await User.findByPk(req.params.id);
+
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      user.name = name || user.name;
+      user.email = email || user.email;
+      user.phone = phone || user.phone;
+      user.role = role || user.role;
+
+      await user.save();
+      res.json({ message: "User updated by admin", user });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  deleteUser: async (req, res) => {
+    try {
+      const user = await User.findByPk(req.params.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (user.profile_picture) {
+        const oldPath = path.join(__dirname, "..", user.profile_picture);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+
+      await user.destroy();
+      res.json({ message: "User deleted" });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 };
