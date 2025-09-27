@@ -35,7 +35,7 @@ const uploadProfile = multer({
 
 // khusus produk
 const uploadProduct = multer({
-  storage: makeStorage("products", "product"),
+  storage: makeStorage("costums", "custom"),
   fileFilter,
 });
 
