@@ -15,6 +15,7 @@ router.put(
 router.put("/profile/password", authenticate, userController.updatePassword);
 
 // Addresses
+router.get("/addresses", authenticate, userController.getAddresses);
 router.post("/addresses", authenticate, userController.addAddress);
 router.put("/addresses/:id", authenticate, userController.updateAddress);
 router.delete("/addresses/:id", authenticate, userController.deleteAddress);

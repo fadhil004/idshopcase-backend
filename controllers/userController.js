@@ -120,6 +120,34 @@ module.exports = {
     }
   },
 
+  getAddresses: async (req, res) => {
+    try {
+      const addresses = await Address.findAll({
+        where: { userId: req.user.id },
+        attributes: [
+          "id",
+          "recipient_name",
+          "phone",
+          "province",
+          "city",
+          "district",
+          "sub_district",
+          "postal_code",
+          "details",
+          "is_primary",
+        ],
+      });
+
+      if (!addresses || addresses.length === 0) {
+        return res.status(404).json({ message: "No addresses found" });
+      }
+
+      return res.json({ addresses });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  },
+
   updateAddress: async (req, res) => {
     try {
       const { id } = req.params;
