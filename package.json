@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "start": "nodemon server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --runInBand",
+    "test:watch": "jest --watchAll",
+    "coverage": "jest --coverage"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +28,8 @@
     "sequelize-cli": "^6.6.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.4"
   }
 }
