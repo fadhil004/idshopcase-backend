@@ -1,11 +1,5 @@
+// file: mocks/models.js
 module.exports = {
-  Product: {
-    findAll: jest.fn(),
-    findByPk: jest.fn(),
-  },
-  CustomImage: {
-    create: jest.fn(),
-  },
   User: {
     findByPk: jest.fn(),
     findAll: jest.fn(),
