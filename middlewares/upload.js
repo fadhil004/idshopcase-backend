@@ -39,4 +39,4 @@ const uploadProduct = multer({
   fileFilter,
 });
 
-module.exports = { uploadProfile, uploadProduct };
+module.exports = { uploadProfile, uploadProduct, fileFilter, makeStorage };

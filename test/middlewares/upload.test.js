@@ -2,91 +2,111 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 
-jest.mock("fs");
+jest.mock("fs"); // Harus paling atas dan sebelum require module manapun
 
 describe("Middleware: upload.js", () => {
+  let upload;
+
+  // Helper untuk load ulang modul setelah mock aktif
+  const loadUpload = () => {
+    jest.resetModules(); // penting: reset cache require
+    upload = require("../../middlewares/upload");
+    return upload;
+  };
+
   beforeEach(() => {
-    jest.resetModules(); // supaya require ulang setiap test
-    jest.clearAllMocks();
+    jest.clearAllMocks(); // reset semua spy dan mock
   });
 
   it("should create upload directory if not exists", () => {
-    fs.existsSync.mockReturnValue(false);
-    fs.mkdirSync.mockImplementation(() => {});
+    fs.existsSync
+      .mockReturnValueOnce(false) // untuk profile_pictures
+      .mockReturnValueOnce(false); // untuk customs
+    fs.mkdirSync.mockImplementation(() => {}); // dummy
 
-    require("../../middlewares/upload");
+    loadUpload(); // Baru require modul di sini
 
-    // Panggilan pertama untuk profile, kedua untuk custom
+    console.log(fs.existsSync.mock.calls); // <== sekarang harus ada isinya
+    console.log(fs.mkdirSync.mock.calls); // <== harus ada 2 pemanggilan
+
     expect(fs.mkdirSync).toHaveBeenCalledWith(
-      expect.stringContaining("uploads/profile_pictures"),
+      expect.stringContaining(path.join("uploads", "profile_pictures")),
+      { recursive: true }
+    );
+
+    expect(fs.mkdirSync).toHaveBeenCalledWith(
+      expect.stringContaining(path.join("uploads", "customs")),
       { recursive: true }
     );
   });
 
   it("should not recreate folder if already exists", () => {
-    fs.existsSync.mockReturnValue(true);
-    require("../../middlewares/upload");
+    fs.existsSync.mockReturnValue(true); // semua folder sudah ada
+
+    loadUpload();
+
     expect(fs.mkdirSync).not.toHaveBeenCalled();
   });
 
-  it("should call multer.diskStorage twice (for profile & product)", () => {
-    const mockDisk = jest.spyOn(multer, "diskStorage");
+  it("should call multer.diskStorage twice", () => {
+    const spyDisk = jest.spyOn(multer, "diskStorage");
     fs.existsSync.mockReturnValue(true);
 
-    require("../../middlewares/upload");
+    loadUpload();
 
-    expect(mockDisk).toHaveBeenCalledTimes(2);
+    expect(spyDisk).toHaveBeenCalledTimes(2);
   });
 
-  it("should set correct destination and filename behavior", (done) => {
+  it("should set correct destination and filename behavior", () => {
     fs.existsSync.mockReturnValue(true);
-    const { uploadProfile } = require("../../middlewares/upload");
+    const { uploadProfile } = loadUpload();
 
-    // kita butuh akses ke fungsi callback di dalam storage
     const storage = uploadProfile.storage;
 
+    const destCb = jest.fn();
+    storage.getDestination({}, {}, destCb);
+
+    expect(destCb).toHaveBeenCalledWith(
+      null,
+      expect.stringContaining(path.join("uploads", "profile_pictures"))
+    );
+
     const file = { originalname: "avatar.jpg" };
-    const req = {};
+    const fileCb = jest.fn();
+    storage.getFilename({}, file, fileCb);
+    const [[, filename]] = fileCb.mock.calls;
 
-    // gunakan internal _handleFile untuk memancing callback di diskStorage
-    storage._handleFile(req, file, (err, info) => {
-      // karena kita tidak benar-benar menyimpan file, kita test manual callback
-      const ext = path.extname(file.originalname);
-      const namePattern = /^profile_\d+\.jpg$/;
-      expect(namePattern.test(`profile_${Date.now()}${ext}`)).toBe(true);
-      done();
-    });
+    expect(filename).toMatch(/^profile_\d+\.jpg$/);
   });
 
-  it("should accept allowed file types", (done) => {
-    const { uploadProduct } = require("../../middlewares/upload");
-    const file = { mimetype: "image/webp" };
+  it("should accept allowed file types", () => {
+    const { fileFilter } = loadUpload();
+    const cb = jest.fn();
 
-    uploadProduct.fileFilter({}, file, (err, accept) => {
-      expect(err).toBeNull();
-      expect(accept).toBe(true);
-      done();
-    });
+    const file = { mimetype: "image/png" };
+    fileFilter({}, file, cb);
+
+    expect(cb).toHaveBeenCalledWith(null, true);
   });
 
-  it("should reject invalid file types", (done) => {
-    const { uploadProfile } = require("../../middlewares/upload");
+  it("should reject invalid file types", () => {
+    const { fileFilter } = loadUpload();
+    const cb = jest.fn();
+
     const file = { mimetype: "application/pdf" };
+    fileFilter({}, file, cb);
 
-    uploadProfile.fileFilter({}, file, (err, accept) => {
-      expect(err).toBeInstanceOf(Error);
-      expect(err.message).toBe("Only .jpeg, .jpg, .png, .webp allowed");
-      expect(accept).toBe(false);
-      done();
-    });
+    expect(cb.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(cb.mock.calls[0][0].message).toBe(
+      "Only .jpeg, .jpg, .png, .webp allowed"
+    );
+    expect(cb.mock.calls[0][1]).toBe(false);
   });
 
   it("should generate different storages for profile and product", () => {
     fs.existsSync.mockReturnValue(true);
-    const {
-      uploadProfile,
-      uploadProduct,
-    } = require("../../middlewares/upload");
+    const { uploadProfile, uploadProduct } = loadUpload();
+
     expect(uploadProfile.storage).not.toBe(uploadProduct.storage);
   });
 });
