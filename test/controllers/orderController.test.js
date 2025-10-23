@@ -42,7 +42,6 @@ describe("orderController", () => {
     jest.clearAllMocks();
   });
 
-  // ====== CHECKOUT TESTS ======
   describe("checkout", () => {
     it("should create order successfully", async () => {
       const req = {
@@ -94,7 +93,6 @@ describe("orderController", () => {
       );
     });
 
-    // 🔥 Tambahan: cover branch shippingRate?.cost || 0 dan default paymentMethod
     it("should handle missing shippingRate cost and default to DOKU", async () => {
       const req = {
         user: { id: 1 },
@@ -186,7 +184,6 @@ describe("orderController", () => {
     });
   });
 
-  // ====== PAYMENT CALLBACK ======
   describe("paymentCallback", () => {
     it("should process successful payment", async () => {
       const req = {
@@ -217,7 +214,6 @@ describe("orderController", () => {
       expect(res.json).toHaveBeenCalledWith({ message: "Callback processed" });
     });
 
-    // 🔥 Tambahan: test cabang transactionStatus !== SUCCESS (tidak update order)
     it("should skip update if transactionStatus is not SUCCESS", async () => {
       const req = {
         body: {
@@ -269,7 +265,6 @@ describe("orderController", () => {
     });
   });
 
-  // ====== TRACK ORDER ======
   describe("trackOrder", () => {
     it("should return tracking info", async () => {
       const req = { params: { awb: "JNT123" } };
@@ -294,7 +289,6 @@ describe("orderController", () => {
     });
   });
 
-  // ====== CANCEL ORDER ======
   describe("cancelOrder", () => {
     it("should cancel order successfully", async () => {
       const req = { params: { orderId: 1 } };
@@ -313,7 +307,6 @@ describe("orderController", () => {
       });
     });
 
-    // 🔥 Tambahan: cover branch cancel.success === false
     it("should not change status if cancel success is false", async () => {
       const req = { params: { orderId: 5 } };
       const res = mockResponse();
