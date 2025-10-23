@@ -17,6 +17,7 @@ describe("productController", () => {
   });
 
   describe("getProducts", () => {
+    //Berhasil menampilkan semua produk
     it("should return all products successfully", async () => {
       const req = {};
       const res = mockResponse();
@@ -30,6 +31,7 @@ describe("productController", () => {
       expect(res.json).toHaveBeenCalledWith(mockProducts);
     });
 
+    //Gagal menampilkan produk (DB error)
     it("should handle internal server error", async () => {
       const req = {};
       const res = mockResponse();
@@ -43,6 +45,7 @@ describe("productController", () => {
   });
 
   describe("getProductById", () => {
+    //Berhasil menemukan produk berdasarkan ID
     it("should return product when found", async () => {
       const req = { params: { id: 1 } };
       const res = mockResponse();
@@ -56,6 +59,7 @@ describe("productController", () => {
       expect(res.json).toHaveBeenCalledWith(mockProduct);
     });
 
+    //Produk tidak ditemukan
     it("should return 404 if product not found", async () => {
       const req = { params: { id: 1 } };
       const res = mockResponse();
@@ -68,6 +72,7 @@ describe("productController", () => {
       expect(res.json).toHaveBeenCalledWith({ message: "Product not found" });
     });
 
+    //Error internal (DB gagal)
     it("should handle internal error", async () => {
       const req = { params: { id: 1 } };
       const res = mockResponse();
@@ -82,6 +87,7 @@ describe("productController", () => {
   });
 
   describe("uploadCustomImage", () => {
+    //Berhasil upload custom image
     it("should upload custom images successfully", async () => {
       const req = {
         body: { productId: 1 },
@@ -107,6 +113,7 @@ describe("productController", () => {
       );
     });
 
+    //Produk tidak valid untuk custom image
     it("should return 400 if product not found or invalid category", async () => {
       const req = {
         body: { productId: 99 },
@@ -125,6 +132,7 @@ describe("productController", () => {
       });
     });
 
+    //Tidak ada file diupload
     it("should return 400 if no files uploaded", async () => {
       const req = {
         body: { productId: 1 },
@@ -143,6 +151,7 @@ describe("productController", () => {
       });
     });
 
+    //Upload lebih dari 2 file (tidak diperbolehkan)
     it("should return 400 if more than 2 files uploaded", async () => {
       const req = {
         body: { productId: 1 },
@@ -161,6 +170,7 @@ describe("productController", () => {
       });
     });
 
+    //Gagal karena error database
     it("should handle internal server error", async () => {
       const req = {
         body: { productId: 1 },
