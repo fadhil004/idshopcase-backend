@@ -17,7 +17,7 @@ module.exports = {
 
       const existPhone = await User.findOne({ where: { phone } });
       if (existPhone)
-        return res.status(400).json({ message: "Email already used" });
+        return res.status(400).json({ message: "Phone already used" });
 
       const hashed = await hashPassword(password);
       const user = await User.create({ name, email, phone, password: hashed });

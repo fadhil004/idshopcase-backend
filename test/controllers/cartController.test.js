@@ -8,6 +8,7 @@ jest.mock("../../models", () => ({
   },
   CartItem: {
     findByPk: jest.fn(),
+    findOne: jest.fn(),
     create: jest.fn(),
   },
   Product: {
@@ -63,11 +64,12 @@ describe("CartController", () => {
   });
 
   describe("addToCart", () => {
-    it("should add item to cart if product found", async () => {
+    it("should add item to cart if no existing item", async () => {
       req.body = { productId: 1, customImageId: null, quantity: 2 };
 
       Product.findByPk.mockResolvedValue({ id: 1, price: 100 });
       Cart.findOrCreate.mockResolvedValue([{ id: 1 }]);
+      CartItem.findOne.mockResolvedValue(null);
       CartItem.create.mockResolvedValue({ id: 10 });
 
       await cartController.addToCart(req, res);
@@ -83,6 +85,32 @@ describe("CartController", () => {
       expect(res.json).toHaveBeenCalledWith({
         message: "Item added to cart",
         item: { id: 10 },
+      });
+    });
+
+    it("should update quantity if item already exists", async () => {
+      req.body = { productId: 1, customImageId: null, quantity: 2 };
+
+      const mockProduct = { id: 1, price: 100 };
+      const mockItem = {
+        id: 99,
+        quantity: 1,
+        Product: { price: 100 },
+        save: jest.fn(),
+      };
+
+      Product.findByPk.mockResolvedValue(mockProduct);
+      Cart.findOrCreate.mockResolvedValue([{ id: 1 }]);
+      CartItem.findOne.mockResolvedValue(mockItem);
+
+      await cartController.addToCart(req, res);
+
+      expect(mockItem.quantity).toBe(3);
+      expect(mockItem.price).toBe(300);
+      expect(mockItem.save).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Cart item updated",
+        item: mockItem,
       });
     });
 

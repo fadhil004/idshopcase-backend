@@ -83,6 +83,33 @@ describe("authController", () => {
       expect(res.json).toHaveBeenCalledWith({ message: "Email already used" });
     });
 
+    it("should return 400 if phone already used", async () => {
+      const req = {
+        body: {
+          name: "Test",
+          email: "unique@example.com",
+          phone: "08123456789",
+          password: "123",
+        },
+      };
+      const res = mockResponse();
+
+      User.findOne
+        .mockResolvedValueOnce(null) // cek email → tidak ada
+        .mockResolvedValueOnce({ id: 2 }); // cek phone → sudah ada
+
+      await authController.register(req, res);
+
+      expect(User.findOne).toHaveBeenNthCalledWith(1, {
+        where: { email: "unique@example.com" },
+      });
+      expect(User.findOne).toHaveBeenNthCalledWith(2, {
+        where: { phone: "08123456789" },
+      });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: "Phone already used" });
+    });
+
     it("should return 500 on server error", async () => {
       const req = { body: { email: "a@a.com", password: "123" } };
       const res = mockResponse();
@@ -304,13 +331,10 @@ describe("authController", () => {
         json: jest.fn(),
       };
 
-      // Simulasi error database, agar langsung masuk ke outer catch
       User.findOne.mockRejectedValueOnce(new Error("Unexpected DB failure"));
 
-      // Jalankan controller
       await authController.forgotPassword(req, res);
 
-      // ✅ Verifikasi blok outer catch terpanggil
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: "Server Error" });
     });
