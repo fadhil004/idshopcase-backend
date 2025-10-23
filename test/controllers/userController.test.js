@@ -314,4 +314,146 @@ describe("UserController", () => {
     await userController.deleteUser(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
   });
+  // === Tambahan untuk cover else-if (is_primary === false) ===
+  it("should update address and set is_primary to false", async () => {
+    Address.findOne.mockResolvedValue({
+      ...mockAddress,
+      is_primary: true,
+      save: jest.fn(),
+    });
+    const req = {
+      user: { id: 1 },
+      params: { id: 1 },
+      body: { is_primary: false, city: "Bandung" },
+    };
+    const res = mockRes();
+    await userController.updateAddress(req, res);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Address updated" })
+    );
+  });
+  it("should return 404 if user not found in updatePassword", async () => {
+    const req = {
+      user: { id: 999 },
+      body: { old_password: "abc", new_password: "def" },
+    };
+    const res = mockRes();
+    jest.spyOn(User, "findByPk").mockResolvedValue(null);
+    await userController.updatePassword(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "User not found" });
+  });
+  it("should handle unexpected error in updatePassword", async () => {
+    const req = {
+      user: { id: 1 },
+      body: { old_password: "abc", new_password: "def" },
+    };
+    const res = mockRes();
+    jest.spyOn(User, "findByPk").mockImplementation(() => {
+      throw new Error("Unexpected failure");
+    });
+    await userController.updatePassword(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: "Unexpected failure" });
+  });
+  it("should set address to primary if requested true and not currently primary", async () => {
+    Address.findOne.mockResolvedValue({
+      ...mockAddress,
+      is_primary: false,
+      save: jest.fn(),
+    });
+    jest.spyOn(Address, "update").mockResolvedValue([1]);
+    const req = {
+      user: { id: 1 },
+      params: { id: 1 },
+      body: { is_primary: true },
+    };
+    const res = mockRes();
+    await userController.updateAddress(req, res);
+    expect(Address.update).toHaveBeenCalledWith(
+      { is_primary: false },
+      { where: { userId: req.user.id } }
+    );
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Address updated" })
+    );
+  });
+  it("should return 404 if address not found in deleteAddress", async () => {
+    Address.findOne.mockResolvedValue(null);
+    const req = { user: { id: 1 }, params: { id: 99 } };
+    const res = mockRes();
+    await userController.deleteAddress(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "Address not found" });
+  });
+  it("should return 404 if user not found in updateUserByAdmin", async () => {
+    const req = { params: { id: 999 }, body: {} };
+    const res = mockRes();
+    jest.spyOn(User, "findByPk").mockResolvedValue(null);
+    await userController.updateUserByAdmin(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "User not found" });
+  });
+
+  // === Cover: addr.is_primary assignment default ===
+  it("should keep is_primary unchanged if undefined in body", async () => {
+    const addr = { ...mockAddress, is_primary: true, save: jest.fn() };
+    Address.findOne.mockResolvedValue(addr);
+
+    const req = {
+      user: { id: 1 },
+      params: { id: 1 },
+      body: { city: "Medan" }, // no is_primary
+    };
+    const res = mockRes();
+
+    await userController.updateAddress(req, res);
+    expect(addr.is_primary).toBe(true);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Address updated" })
+    );
+  });
+
+  // === Cover: deleteAddress - primary true & new primary found ===
+  it("should reassign new primary if deleted address was primary", async () => {
+    const addr = { id: 1, is_primary: true, destroy: jest.fn() };
+    const newAddr = { id: 2, is_primary: false, save: jest.fn() };
+
+    Address.findOne
+      .mockResolvedValueOnce(addr) // first findOne (for delete)
+      .mockResolvedValueOnce(newAddr); // second findOne (for newPrimary)
+
+    const req = { user: { id: 1 }, params: { id: 1 } };
+    const res = mockRes();
+
+    await userController.deleteAddress(req, res);
+    expect(newAddr.is_primary).toBe(true);
+    expect(newAddr.save).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Address deleted" })
+    );
+  });
+
+  // === Cover: updateUserByAdmin (user.name = name || user.name) ===
+  it("should keep old user.name if no new name provided", async () => {
+    const user = {
+      id: 1,
+      name: "OldName",
+      email: "a@mail.com",
+      phone: "08123",
+      role: "user",
+      save: jest.fn(),
+    };
+    jest.spyOn(User, "findByPk").mockResolvedValue(user);
+
+    const req = { params: { id: 1 }, body: { email: "new@mail.com" } };
+    const res = mockRes();
+
+    await userController.updateUserByAdmin(req, res);
+    expect(user.name).toBe("OldName");
+    expect(user.email).toBe("new@mail.com");
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "User updated by admin" })
+    );
+  });
 });

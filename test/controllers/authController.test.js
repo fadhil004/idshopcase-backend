@@ -223,34 +223,34 @@ describe("authController", () => {
       );
     });
     it("should handle email sending failure in forgotPassword", async () => {
-        const mockUser = {
-            email: "fail@test.com",
-            resetPasswordToken: "hash",
-            resetPasswordExpire: Date.now() + 10000,
-            save: jest.fn().mockResolvedValue(),
-        };
+      const mockUser = {
+        email: "fail@test.com",
+        resetPasswordToken: "hash",
+        resetPasswordExpire: Date.now() + 10000,
+        save: jest.fn().mockResolvedValue(),
+      };
 
-        // Mock User.findOne → return user
-        User.findOne.mockResolvedValue(mockUser);
+      // Mock User.findOne → return user
+      User.findOne.mockResolvedValue(mockUser);
 
-        // Mock sendEmail → lempar error
-        sendEmail.mockRejectedValueOnce(new Error("SMTP connection failed"));
+      // Mock sendEmail → lempar error
+      sendEmail.mockRejectedValueOnce(new Error("SMTP connection failed"));
 
-        const req = { body: { email: "fail@test.com" } };
-        const res = {
-            json: jest.fn(),
-            status: jest.fn().mockReturnThis(),
-        };
+      const req = { body: { email: "fail@test.com" } };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
 
-        await authController.forgotPassword(req, res);
+      await authController.forgotPassword(req, res);
 
-        expect(sendEmail).toHaveBeenCalled();
-        expect(mockUser.save).toHaveBeenCalledTimes(2); // sekali sebelum kirim, sekali saat gagal
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({
-            message: "Email sending failed",
-            error: "SMTP connection failed",
-        });
+      expect(sendEmail).toHaveBeenCalled();
+      expect(mockUser.save).toHaveBeenCalledTimes(2); // sekali sebelum kirim, sekali saat gagal
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Email sending failed",
+        error: "SMTP connection failed",
+      });
     });
   });
 
@@ -294,6 +294,23 @@ describe("authController", () => {
 
       await authController.resetPassword(req, res);
 
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: "Server Error" });
+    });
+    it("should handle unexpected server error in forgotPassword", async () => {
+      const req = { body: { email: "boom@example.com" } };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+
+      // Simulasi error database, agar langsung masuk ke outer catch
+      User.findOne.mockRejectedValueOnce(new Error("Unexpected DB failure"));
+
+      // Jalankan controller
+      await authController.forgotPassword(req, res);
+
+      // ✅ Verifikasi blok outer catch terpanggil
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: "Server Error" });
     });
