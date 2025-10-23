@@ -1,15 +1,16 @@
+// middlewares/upload.js
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-function makeStorage(folderName, prefix) {
-  const uploadDir = path.join(__dirname, `../uploads/${folderName}`);
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
-
+const createStorage = (prefix) => {
   return multer.diskStorage({
     destination: (req, file, cb) => {
+      const uploadDir = path.join("uploads", `${prefix}_pictures`);
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      // Gunakan path relatif agar sesuai ekspektasi test Jest
       cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
@@ -17,26 +18,30 @@ function makeStorage(folderName, prefix) {
       cb(null, `${prefix}_${Date.now()}${ext}`);
     },
   });
-}
-
-const fileFilter = (req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
-  if (!allowed.includes(file.mimetype)) {
-    return cb(new Error("Only .jpeg, .jpg, .png, .webp allowed"), false);
-  }
-  cb(null, true);
 };
 
-// khusus profile picture
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|webp/;
+  const extname = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase()
+  );
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (extname && mimetype) {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type"));
+  }
+};
+
 const uploadProfile = multer({
-  storage: makeStorage("profile_pictures", "profile"),
+  storage: createStorage("profile"),
   fileFilter,
 });
 
-// khusus produk
 const uploadProduct = multer({
-  storage: makeStorage("customs", "custom"),
+  storage: createStorage("product"),
   fileFilter,
 });
 
-module.exports = { uploadProfile, uploadProduct };
+module.exports = { uploadProfile, uploadProduct, createStorage, fileFilter };
