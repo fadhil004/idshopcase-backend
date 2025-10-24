@@ -38,15 +38,34 @@ module.exports = {
 
       const [cart] = await Cart.findOrCreate({ where: { userId } });
 
-      const item = await CartItem.create({
-        cartId: cart.id,
-        productId,
-        customImageId: customImageId || null,
-        quantity,
-        price: product.price * quantity,
+      const existingItem = await CartItem.findOne({
+        where: {
+          cartId: cart.id,
+          productId,
+          customImageId: customImageId || null,
+        },
+        include: [Product],
       });
 
-      return res.status(201).json({ message: "Item added to cart", item });
+      if (existingItem) {
+        existingItem.quantity += quantity;
+        existingItem.price = existingItem.Product.price * existingItem.quantity;
+        await existingItem.save();
+
+        return res.json({ message: "Cart item updated", item: existingItem });
+      } else {
+        const newItem = await CartItem.create({
+          cartId: cart.id,
+          productId,
+          customImageId: customImageId || null,
+          quantity,
+          price: product.price * quantity,
+        });
+
+        return res
+          .status(201)
+          .json({ message: "Item added to cart", item: newItem });
+      }
     } catch (err) {
       console.error(err);
       return res.status(500).json({ error: err.message });
