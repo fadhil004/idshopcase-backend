@@ -1,94 +1,98 @@
 const axios = require("axios");
 const crypto = require("crypto");
 
-const DOKU_URL = process.env.DOKU_URL;
 const DOKU_CLIENT_ID = process.env.DOKU_CLIENT_ID;
 const DOKU_SECRET_KEY = process.env.DOKU_SECRET_KEY;
-const DOKU_MERCHANT_CODE = process.env.DOKU_MERCHANT_CODE;
+const DOKU_MERCHANT_URL = process.env.DOKU_MERCHANT_URL;
+const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:5000";
 
-function generateSignature(requestBody, requestId, requestTarget, timestamp) {
-  const bodyHash = crypto
+function isoTimestampNoMs(date = new Date()) {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function generateSignature(requestId, timestamp, requestTarget, requestBody) {
+  const digest = crypto
     .createHash("sha256")
     .update(JSON.stringify(requestBody))
     .digest("base64");
-  const stringToSign = `Client-Id:${DOKU_CLIENT_ID}\nRequest-Id:${requestId}\nRequest-Timestamp:${timestamp}\nRequest-Target:${requestTarget}\nDigest:${bodyHash}`;
+
+  const signatureBase =
+    `Client-Id:${DOKU_CLIENT_ID}\n` +
+    `Request-Id:${requestId}\n` +
+    `Request-Timestamp:${timestamp}\n` +
+    `Request-Target:${requestTarget}\n` +
+    `Digest:${digest}`;
+
   const signature = crypto
     .createHmac("sha256", DOKU_SECRET_KEY)
-    .update(stringToSign)
+    .update(signatureBase)
     .digest("base64");
-  return `HMACSHA256=${signature}`;
+
+  return signature;
 }
 
-module.exports = {
-  createPayment: async ({ amount, orderId, email, name }) => {
-    try {
-      const requestId = crypto.randomUUID();
-      const requestTarget = "/checkout/v1/payment";
-      const timestamp = new Date().toISOString();
+async function createDokuCheckout(order, user, requestId) {
+  const requestTarget = "/checkout/v1/payment";
+  const timestamp = isoTimestampNoMs();
 
-      const body = {
-        order: {
-          amount,
-          invoice_number: `ORDER-${orderId}`,
-          currency: "IDR",
-        },
-        payment: {
-          payment_due_date: 60,
-        },
-        customer: {
-          name,
-          email,
-        },
-      };
+  const body = {
+    order: {
+      amount: Number(order.total_price),
+      invoice_number: `INV-${order.id}-${Date.now()}`,
+      currency: "IDR",
+    },
+    payment: { payment_due_date: 60 },
+    customer: {
+      name: user.name || "Customer",
+      email: user.email || "customer@example.com",
+    },
+    redirect: {
+      success_url: `${APP_BASE_URL}/payment/success`,
+      failure_url: `${APP_BASE_URL}/payment/failure`,
+      cancel_url: `${APP_BASE_URL}/payment/cancel`,
+    },
+  };
 
-      const signature = generateSignature(
-        body,
-        requestId,
-        requestTarget,
-        timestamp
-      );
+  const signature = generateSignature(
+    requestId,
+    timestamp,
+    requestTarget,
+    body
+  );
 
-      const response = await axios.post(`${DOKU_URL}${requestTarget}`, body, {
-        headers: {
-          "Client-Id": DOKU_CLIENT_ID,
-          "Request-Id": requestId,
-          "Request-Timestamp": timestamp,
-          Signature: signature,
-          "Content-Type": "application/json",
-        },
-      });
+  const headers = {
+    "Client-Id": DOKU_CLIENT_ID,
+    "Request-Id": requestId,
+    "Request-Timestamp": timestamp,
+    Signature: `HMACSHA256=${signature}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
 
-      return {
-        paymentUrl: response.data.response.payment.url,
-        transactionId: response.data.response.transaction_id,
-      };
-    } catch (err) {
-      console.error(
-        "DOKU createPayment error:",
-        err.response?.data || err.message
-      );
-      throw err;
-    }
-  },
+  console.log("==========  DOKU REQUEST ==========");
+  console.log("URL:", DOKU_MERCHANT_URL);
+  console.log("Headers:", JSON.stringify(headers, null, 2));
+  console.log("Body:", JSON.stringify(body, null, 2));
+  console.log("====================================");
 
-  verifyCallback: (headers, body) => {
-    const {
-      signature,
-      "request-id": requestId,
-      "request-timestamp": timestamp,
-      "request-target": target,
-    } = headers;
+  try {
+    const response = await axios.post(DOKU_MERCHANT_URL, body, { headers });
 
-    const bodyHash = crypto
-      .createHash("sha256")
-      .update(JSON.stringify(body))
-      .digest("base64");
-    const stringToSign = `Client-Id:${DOKU_CLIENT_ID}\nRequest-Id:${requestId}\nRequest-Timestamp:${timestamp}\nRequest-Target:${target}\nDigest:${bodyHash}`;
-    const expectedSignature = `HMACSHA256=${crypto
-      .createHmac("sha256", DOKU_SECRET_KEY)
-      .update(stringToSign)
-      .digest("base64")}`;
+    console.log("========== DOKU RESPONSE SUCCESS ==========");
+    console.log("Status:", response.status);
+    console.log("Data:", JSON.stringify(response.data, null, 2));
+    console.log("=============================================");
 
-    return signature === expectedSignature;
-  },
-};
+    return response.data;
+  } catch (error) {
+    console.error("========== DOKU RESPONSE ERROR ==========");
+    console.error("Status:", error.response?.status || "No status");
+    console.error("Data:", JSON.stringify(error.response?.data, null, 2));
+    console.error("Message:", error.message);
+    console.error("============================================");
+
+    throw new Error("Failed to create DOKU Checkout session");
+  }
+}
+
+module.exports = { createDokuCheckout };

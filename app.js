@@ -9,6 +9,7 @@ const userRoutes = require("./routes/user");
 const productRoutes = require("./routes/product");
 const cartRoutes = require("./routes/cart");
 const orderRoutes = require("./routes/order");
+const webhookRoutes = require("./routes/webhook");
 
 const app = express();
 app.use(cors());
@@ -20,5 +21,6 @@ app.use("/api/user", userRoutes);
 app.use("/api/product", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/order", orderRoutes);
+app.use("/api/doku", webhookRoutes);
 
 module.exports = app;

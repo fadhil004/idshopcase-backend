@@ -2,151 +2,101 @@ const {
   Cart,
   CartItem,
   Product,
-  CustomImage,
+  Address,
   Order,
   OrderItem,
   Payment,
-  Address,
+  User,
 } = require("../models");
-const jntService = require("../services/jntService");
-const dokuService = require("../services/dokuService");
+const { getShippingCost } = require("../services/jntService");
+const { createDokuCheckout } = require("../services/dokuService");
+const crypto = require("crypto");
 
-module.exports = {
-  checkout: async (req, res) => {
-    try {
-      const userId = req.user.id;
-      const { addressId, selectedItems, paymentMethod } = req.body;
+exports.createOrder = async (req, res) => {
+  const t = await Order.sequelize.transaction();
+  try {
+    const userId = req.user.id;
+    const { addressId, selectedItemIds } = req.body;
 
-      const address = await Address.findByPk(addressId);
-      if (!address)
-        return res.status(404).json({ message: "Address not found" });
+    const user = await User.findByPk(userId);
+    const address = await Address.findByPk(addressId);
+    if (!address) return res.status(404).json({ message: "Address not found" });
 
-      const cartItems = await CartItem.findAll({
-        where: { id: selectedItems },
-        include: [Product],
-      });
-      if (!cartItems.length)
-        return res.status(400).json({ message: "No selected items" });
+    const cart = await Cart.findOne({
+      where: { userId },
+      include: [
+        {
+          model: CartItem,
+          include: [Product],
+          where: { id: selectedItemIds },
+        },
+      ],
+    });
 
-      const subtotal = cartItems.reduce(
-        (acc, item) => acc + Number(item.price),
-        0
-      );
+    if (!cart || cart.CartItems.length === 0)
+      return res.status(400).json({ message: "No selected items found" });
 
-      const origin = "BGR"; // contoh kode kota asal
-      const destAreaCode = address.district; // sesuaikan nanti dari mapping district J&T
-      const weight = cartItems.reduce(
-        (acc, item) => acc + item.Product.weight,
-        0
-      );
+    const subtotal = cart.CartItems.reduce(
+      (acc, item) => acc + parseFloat(item.price) * item.quantity,
+      0
+    );
 
-      const shippingRate = await jntService.getRate({
-        weight,
-        sendSiteCode: origin,
-        destAreaCode,
-      });
+    const { cost: shippingCost } = await getShippingCost(address);
+    const totalPrice = subtotal + shippingCost;
 
-      const shippingCost = shippingRate?.cost || 0;
-      const totalPrice = subtotal + shippingCost;
+    const requestId = crypto.randomUUID();
 
-      const order = await Order.create({
+    const order = await Order.create(
+      {
         userId,
         addressId,
         total_price: totalPrice,
-        payment_method: paymentMethod || "DOKU",
+        payment_method: "DOKU Checkout",
         status: "pending",
-      });
+        requestId,
+      },
+      { transaction: t }
+    );
 
-      for (const item of cartItems) {
-        await OrderItem.create({
+    for (const item of cart.CartItems) {
+      await OrderItem.create(
+        {
           orderId: order.id,
           productId: item.productId,
-          customImageId: item.customImageId,
           quantity: item.quantity,
           price: item.price,
-        });
-        await item.destroy();
-      }
+        },
+        { transaction: t }
+      );
 
-      const payment = await Payment.create({
+      await item.destroy({ transaction: t });
+    }
+
+    const payment = await Payment.create(
+      {
         orderId: order.id,
         payment_gateway: "DOKU",
         amount: totalPrice,
         status: "pending",
-      });
+      },
+      { transaction: t }
+    );
 
-      const paymentResponse = await dokuService.createCheckout(order, payment);
+    const dokuResponse = await createDokuCheckout(order, user, requestId);
 
-      return res.status(201).json({
-        message: "Order created",
-        order,
-        paymentUrl: paymentResponse.payment_url,
-        total: totalPrice,
-        shippingCost,
-      });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: err.message });
-    }
-  },
+    await t.commit();
 
-  paymentCallback: async (req, res) => {
-    try {
-      const { orderId, transactionStatus, transactionId } = req.body;
-
-      const order = await Order.findByPk(orderId, {
-        include: [Payment, Address],
-      });
-      if (!order) return res.status(404).json({ message: "Order not found" });
-
-      if (transactionStatus === "SUCCESS") {
-        order.status = "paid";
-        order.Payment.status = "success";
-        order.Payment.transaction_id = transactionId;
-        await order.save();
-        await order.Payment.save();
-
-        // Integrasi ke J&T — generate waybill
-        const jntResponse = await jntService.createOrder(order, order.Address);
-
-        order.tracking_number = jntResponse.awb_no;
-        await order.save();
-      }
-
-      return res.json({ message: "Callback processed" });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: err.message });
-    }
-  },
-
-  trackOrder: async (req, res) => {
-    try {
-      const { awb } = req.params;
-      const tracking = await jntService.trackOrder(awb);
-      return res.json(tracking);
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: err.message });
-    }
-  },
-
-  cancelOrder: async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      const order = await Order.findByPk(orderId);
-      if (!order) return res.status(404).json({ message: "Order not found" });
-
-      const cancel = await jntService.cancelOrder(order.id);
-      if (cancel.success) {
-        order.status = "cancelled";
-        await order.save();
-      }
-
-      return res.json({ message: "Order cancelled", cancel });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: err.message });
-    }
-  },
+    res.status(201).json({
+      message: "Order created successfully",
+      order,
+      payment,
+      checkout: dokuResponse,
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Failed to create order", error: error.message });
+  }
 };
