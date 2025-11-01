@@ -6,7 +6,7 @@ function verifyDokuSignature(headers, body, storedRequestId) {
   const requestId = storedRequestId;
   const requestTimestamp = headers["request-timestamp"];
   const signatureHeader = headers["signature"];
-  const requestTarget = "/api/doku/callback"; // endpoint kamu sesuai DOKU
+  const requestTarget = "/api/doku/callback";
   const secretKey = process.env.DOKU_SECRET_KEY;
 
   const digest = crypto
