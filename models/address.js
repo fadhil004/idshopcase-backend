@@ -20,7 +20,6 @@ module.exports = (sequelize, DataTypes) => {
       province: DataTypes.TEXT,
       city: DataTypes.TEXT,
       district: DataTypes.TEXT,
-      sub_district: DataTypes.TEXT,
       postal_code: DataTypes.STRING,
       details: DataTypes.TEXT,
       is_primary: DataTypes.BOOLEAN,

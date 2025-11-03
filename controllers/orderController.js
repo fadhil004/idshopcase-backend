@@ -12,6 +12,82 @@ const { getShippingCost } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
 const crypto = require("crypto");
 
+exports.getOrderSummary = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { addressId, selectedItemIds } = req.body;
+
+    const address = await Address.findByPk(addressId);
+    if (!address) return res.status(404).json({ message: "Address not found" });
+
+    const cart = await Cart.findOne({
+      where: { userId },
+      include: [
+        {
+          model: CartItem,
+          include: [Product],
+          where: { id: selectedItemIds },
+        },
+      ],
+    });
+
+    if (!cart || cart.CartItems.length === 0)
+      return res.status(400).json({ message: "No selected items found" });
+
+    const subtotal = cart.CartItems.reduce(
+      (acc, item) => acc + parseFloat(item.price),
+      0
+    );
+
+    const totalWeight = cart.CartItems.reduce(
+      (acc, item) => acc + 0.1 * item.quantity,
+      0
+    );
+
+    const {
+      cost: shippingCost,
+      name: shippingService,
+      error: shippingError,
+    } = await getShippingCost({
+      weight: totalWeight,
+      sendSiteCode: "JAKARTA",
+      destAreaCode: "KALIDERES",
+    });
+
+    if (shippingError) {
+      throw new Error(`Failed to get shipping cost: ${shippingError}`);
+    }
+
+    const totalPrice = subtotal + shippingCost;
+
+    return res.json({
+      message: "Order summary calculated",
+      data: {
+        items: cart.CartItems.map((item) => ({
+          id: item.id,
+          name: item.Product.name,
+          quantity: item.quantity,
+          price: parseFloat(item.price),
+          subtotal: parseFloat(item.price),
+        })),
+        subtotal,
+        shipping: {
+          courier: "J&T Express",
+          service: shippingService,
+          cost: shippingCost,
+        },
+        total: totalPrice,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to get order summary",
+      error: error.message,
+    });
+  }
+};
+
 exports.createOrder = async (req, res) => {
   const t = await Order.sequelize.transaction();
   try {
@@ -37,11 +113,25 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ message: "No selected items found" });
 
     const subtotal = cart.CartItems.reduce(
-      (acc, item) => acc + parseFloat(item.price) * item.quantity,
+      (acc, item) => acc + parseFloat(item.price),
       0
     );
 
-    const { cost: shippingCost } = await getShippingCost(address);
+    const totalWeight = cart.CartItems.reduce(
+      (acc, item) => acc + 0.1 * item.quantity,
+      0
+    );
+
+    const { cost: shippingCost, error: shippingError } = await getShippingCost({
+      weight: totalWeight,
+      sendSiteCode: "JAKARTA", // asal pengiriman
+      destAreaCode: "KALIDERES", // kode kecamatan tujuan
+    });
+
+    if (shippingError) {
+      throw new Error(`Failed to get shipping cost: ${shippingError}`);
+    }
+    console.log("===========", shippingCost);
     const totalPrice = subtotal + shippingCost;
 
     const requestId = crypto.randomUUID();
