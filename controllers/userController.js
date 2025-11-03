@@ -87,7 +87,6 @@ module.exports = {
         province,
         city,
         district,
-        sub_district,
         postal_code,
         details,
         is_primary,
@@ -108,7 +107,6 @@ module.exports = {
         province,
         city,
         district,
-        sub_district,
         postal_code,
         details,
         is_primary: !!is_primary,
@@ -131,7 +129,6 @@ module.exports = {
           "province",
           "city",
           "district",
-          "sub_district",
           "postal_code",
           "details",
           "is_primary",
@@ -157,7 +154,6 @@ module.exports = {
         province,
         city,
         district,
-        sub_district,
         postal_code,
         details,
         is_primary,
@@ -186,7 +182,6 @@ module.exports = {
       addr.province = province || addr.province;
       addr.city = city || addr.city;
       addr.district = district || addr.district;
-      addr.sub_district = sub_district || addr.sub_district;
       addr.postal_code = postal_code || addr.postal_code;
       addr.details = details || addr.details;
       addr.is_primary = is_primary !== undefined ? is_primary : addr.is_primary;

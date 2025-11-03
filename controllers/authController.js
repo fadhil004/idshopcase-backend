@@ -10,16 +10,28 @@ const sendEmail = require("../utils/sendEmail");
 module.exports = {
   register: async (req, res) => {
     try {
-      const { name, email, password } = req.body;
-      const exist = await User.findOne({ where: { email } });
-      if (exist) return res.status(400).json({ message: "Email already used" });
+      const { name, email, phone, password } = req.body;
+      const existEmail = await User.findOne({ where: { email } });
+      if (existEmail)
+        return res.status(400).json({ message: "Email already used" });
+
+      const existPhone = await User.findOne({ where: { phone } });
+      if (existPhone)
+        return res.status(400).json({ message: "Phone already used" });
 
       const hashed = await hashPassword(password);
-      const user = await User.create({ name, email, password: hashed });
+      const user = await User.create({ name, email, phone, password: hashed });
 
-      const { password: _, resetPasswordToken, resetPasswordExpire, ...userData } = user.toJSON();
+      const {
+        password: _,
+        resetPasswordToken,
+        resetPasswordExpire,
+        ...userData
+      } = user.toJSON();
 
-      return res.status(201).json({ message: "User registered", user: userData });
+      return res
+        .status(201)
+        .json({ message: "User registered", user: userData });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -34,7 +46,11 @@ module.exports = {
       const match = await comparePassword(password, user.password);
       if (!match) return res.status(400).json({ message: "Wrong password" });
 
-      const token = jwt.sign({ id: user.id, email: user.email,role: user.role }, process.env.JWT_SECRET, { expiresIn: "30m" });
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "30m" }
+      );
 
       return res.json({ message: "Login success", token });
     } catch (err) {
@@ -51,7 +67,10 @@ module.exports = {
 
       // Generate unique token
       const resetToken = crypto.randomBytes(32).toString("hex");
-      const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+      const resetTokenHash = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
 
       // Save hash token in DB + expired
       user.resetPasswordToken = resetTokenHash;
@@ -75,7 +94,9 @@ module.exports = {
         user.resetPasswordToken = null;
         user.resetPasswordExpire = null;
         await user.save();
-        return res.status(500).json({ message: "Email sending failed", error: emailErr.message });
+        return res
+          .status(500)
+          .json({ message: "Email sending failed", error: emailErr.message });
       }
     } catch (err) {
       console.error(err);
@@ -88,7 +109,10 @@ module.exports = {
       const { token } = req.params;
       const { password } = req.body;
 
-      const resetTokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const resetTokenHash = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
 
       const user = await User.findOne({
         where: {
@@ -97,7 +121,8 @@ module.exports = {
         },
       });
 
-      if (!user) return res.status(400).json({ message: "Token invalid or expired" });
+      if (!user)
+        return res.status(400).json({ message: "Token invalid or expired" });
 
       // Hash new password
       user.password = await hashPassword(password);

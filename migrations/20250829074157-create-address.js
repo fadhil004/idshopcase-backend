@@ -27,9 +27,6 @@ module.exports = {
       district: {
         type: Sequelize.TEXT,
       },
-      sub_district: {
-        type: Sequelize.TEXT,
-      },
       postal_code: {
         type: Sequelize.STRING,
       },

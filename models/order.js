@@ -32,6 +32,10 @@ module.exports = (sequelize, DataTypes) => {
       total_price: DataTypes.DECIMAL,
       payment_method: DataTypes.STRING,
       tracking_number: DataTypes.STRING,
+      requestId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       sequelize,
