@@ -36,7 +36,7 @@ module.exports = (sequelize, DataTypes) => {
         ),
         allowNull: true,
       },
-
+      variation: DataTypes.STRING,
       phone_type: DataTypes.STRING,
       image: DataTypes.STRING,
     },

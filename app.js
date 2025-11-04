@@ -10,6 +10,7 @@ const productRoutes = require("./routes/product");
 const cartRoutes = require("./routes/cart");
 const orderRoutes = require("./routes/order");
 const webhookRoutes = require("./routes/webhook");
+const imageRoutes = require("./routes/image");
 
 const app = express();
 app.use(cors());
@@ -22,5 +23,6 @@ app.use("/api/product", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/order", orderRoutes);
 app.use("/api/doku", webhookRoutes);
+app.use("/api/images", imageRoutes);
 
 module.exports = app;
