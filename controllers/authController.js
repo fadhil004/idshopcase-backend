@@ -19,20 +19,66 @@ module.exports = {
       if (existPhone)
         return res.status(400).json({ message: "Phone already used" });
 
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpire = new Date(Date.now() + 10 * 60 * 1000);
+
       const hashed = await hashPassword(password);
-      const user = await User.create({ name, email, phone, password: hashed });
+      const user = await User.create({
+        name,
+        email,
+        phone,
+        password: hashed,
+        otp_code: otp,
+        otp_expire: otpExpire,
+        is_verified: false,
+      });
 
-      const {
-        password: _,
-        resetPasswordToken,
-        resetPasswordExpire,
-        ...userData
-      } = user.toJSON();
+      const message = `
+        <h2>IDSHOPCASE Account Verification</h2>
+        <p>Hello <b>${name}</b>,</p>
+        <p>Enter the following OTP code to verify your account (valid for 10 minutes):</p>
+        <h1 style="letter-spacing: 3px;">${otp}</h1>
+      `;
 
-      return res
-        .status(201)
-        .json({ message: "User registered", user: userData });
+      await sendEmail(user.email, "IDSHOPCASE Account Verification", message);
+
+      return res.status(201).json({
+        message:
+          "Registration successful, please check your email for OTP verification.",
+        email: user.email,
+      });
     } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  },
+
+  verifyOtp: async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+
+      const user = await User.findOne({ where: { email } });
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (user.is_verified)
+        return res.status(400).json({ message: "Account has been verified" });
+
+      if (
+        user.otp_code !== otp ||
+        new Date(user.otp_expire).getTime() < Date.now()
+      ) {
+        return res
+          .status(400)
+          .json({ message: "OTP code is incorrect or expired" });
+      }
+
+      user.is_verified = true;
+      user.otp_code = null;
+      user.otp_expire = null;
+      await user.save();
+
+      return res.json({ message: "Verification successful, please login" });
+    } catch (err) {
+      console.error(err);
       return res.status(500).json({ error: err.message });
     }
   },
@@ -42,6 +88,9 @@ module.exports = {
       const { email, password } = req.body;
       const user = await User.findOne({ where: { email } });
       if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (!user.is_verified)
+        return res.status(400).json({ message: "Account not verified" });
 
       const match = await comparePassword(password, user.password);
       if (!match) return res.status(400).json({ message: "Wrong password" });
