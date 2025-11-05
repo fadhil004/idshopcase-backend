@@ -50,8 +50,8 @@ exports.getOrderSummary = async (req, res) => {
       error: shippingError,
     } = await getShippingCost({
       weight: totalWeight,
-      sendSiteCode: "JAKARTA",
-      destAreaCode: "KALIDERES",
+      sendSiteCode: "CIBINONG",
+      destAreaCode: "BUKIT RAYA-PKU",
     });
 
     if (shippingError) {
@@ -124,8 +124,8 @@ exports.createOrder = async (req, res) => {
 
     const { cost: shippingCost, error: shippingError } = await getShippingCost({
       weight: totalWeight,
-      sendSiteCode: "JAKARTA", // asal pengiriman
-      destAreaCode: "KALIDERES", // kode kecamatan tujuan
+      sendSiteCode: "CIBINONG", // asal pengiriman
+      destAreaCode: "BUKIT RAYA-PKU", // kode kecamatan tujuan
     });
 
     if (shippingError) {

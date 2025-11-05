@@ -7,7 +7,7 @@ module.exports = {
   getProfile: async (req, res) => {
     try {
       const user = await User.findByPk(req.user.id, {
-        attributes: ["id", "name", "email", "phone", "profile_picture"],
+        attributes: ["id", "name", "email", "phone", "profile_picture", "role"],
         include: [{ model: Address, as: "Addresses" }],
       });
 
