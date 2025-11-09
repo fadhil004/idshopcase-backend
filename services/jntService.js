@@ -71,6 +71,11 @@ const createJntOrder = async (order, address, orderItems) => {
       0
     );
 
+    const mapping = address.JntMapping;
+    if (!mapping) {
+      throw new Error("Missing J&T mapping for this address");
+    }
+
     const data = {
       username,
       api_key,
@@ -85,8 +90,8 @@ const createJntOrder = async (order, address, orderItems) => {
       receiver_phone: address.phone,
       receiver_addr: `${address.details}, ${address.district}, ${address.city}, ${address.province}`,
       receiver_zip: address.postal_code || "00000",
-      destination_code: "PKU", // sesuaikan kalau kamu punya mapping code
-      receiver_area: "PKU001", // sesuaikan juga
+      destination_code: mapping.jnt_city_code, // sesuaikan kalau kamu punya mapping code
+      receiver_area: mapping.jnt_area_code, // sesuaikan juga
       qty: totalQty,
       weight: totalWeight,
       goodsdesc: "Custom Phone Case & Accessories",

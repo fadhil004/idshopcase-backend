@@ -17,8 +17,16 @@ exports.getOrderSummary = async (req, res) => {
     const userId = req.user.id;
     const { addressId, selectedItemIds } = req.body;
 
-    const address = await Address.findByPk(addressId);
+    const address = await Address.findByPk(addressId, {
+      include: [{ model: JntAddressMapping, as: "JntMapping" }],
+    });
     if (!address) return res.status(404).json({ message: "Address not found" });
+
+    const jnt = address.JntMapping;
+    if (!jnt)
+      return res
+        .status(400)
+        .json({ message: "J&T mapping not found for this address" });
 
     const cart = await Cart.findOne({
       where: { userId },
@@ -51,7 +59,7 @@ exports.getOrderSummary = async (req, res) => {
     } = await getShippingCost({
       weight: totalWeight,
       sendSiteCode: "CIBINONG",
-      destAreaCode: "BUKIT RAYA-PKU",
+      destAreaCode: jnt.jnt_area_code,
     });
 
     if (shippingError) {
@@ -95,8 +103,16 @@ exports.createOrder = async (req, res) => {
     const { addressId, selectedItemIds } = req.body;
 
     const user = await User.findByPk(userId);
-    const address = await Address.findByPk(addressId);
+    const address = await Address.findByPk(addressId, {
+      include: [{ model: JntAddressMapping, as: "JntMapping" }],
+    });
     if (!address) return res.status(404).json({ message: "Address not found" });
+
+    const jnt = address.JntMapping;
+    if (!jnt)
+      return res
+        .status(400)
+        .json({ message: "J&T mapping not found for this address" });
 
     const cart = await Cart.findOne({
       where: { userId },
@@ -125,7 +141,7 @@ exports.createOrder = async (req, res) => {
     const { cost: shippingCost, error: shippingError } = await getShippingCost({
       weight: totalWeight,
       sendSiteCode: "CIBINONG", // asal pengiriman
-      destAreaCode: "BUKIT RAYA-PKU", // kode kecamatan tujuan
+      destAreaCode: jnt.jnt_area_code, // kode kecamatan tujuan
     });
 
     if (shippingError) {
