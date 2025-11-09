@@ -31,7 +31,9 @@ module.exports = {
       const userId = req.user.id;
       const { productId, customImageId, quantity } = req.body;
 
-      const product = await Product.findByPk(productId);
+      const product = await Product.findByPk(productId, {
+        include: [{ model: ProductImage }],
+      });
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }

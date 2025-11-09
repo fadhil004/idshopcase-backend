@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
       Product.hasMany(models.CustomImage, { foreignKey: "productId" });
       Product.hasMany(models.CartItem, { foreignKey: "productId" });
       Product.hasMany(models.OrderItem, { foreignKey: "productId" });
+      Product.hasMany(models.ProductImage, { foreignKey: "productId" });
     }
   }
   Product.init(
@@ -20,25 +21,15 @@ module.exports = (sequelize, DataTypes) => {
       price: DataTypes.DECIMAL,
       stock: DataTypes.INTEGER,
       category: {
-        type: DataTypes.ENUM(
-          "custom_case",
-          "keychain",
-          "phone_charm",
-          "pop_socket"
-        ),
+        type: DataTypes.STRING,
         allowNull: false,
       },
       material: {
-        type: DataTypes.ENUM(
-          "premium_softcase",
-          "diamond_impact",
-          "magsafe_diamond_impact_x2"
-        ),
+        type: DataTypes.STRING,
         allowNull: true,
       },
       variation: DataTypes.STRING,
       phone_type: DataTypes.STRING,
-      image: DataTypes.STRING,
     },
     {
       sequelize,

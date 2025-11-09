@@ -5,7 +5,7 @@ const fs = require("fs");
 const createStorage = (prefix) => {
   return multer.diskStorage({
     destination: (req, file, cb) => {
-      const uploadDir = path.join("uploads", `${prefix}_pictures`);
+      const uploadDir = path.join("uploads", `${prefix}s`);
       if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
       }
@@ -33,7 +33,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 const uploadProfile = multer({
-  storage: createStorage("profile"),
+  storage: createStorage("profile_picture"),
   fileFilter,
 });
 
