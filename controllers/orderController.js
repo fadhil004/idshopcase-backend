@@ -8,7 +8,7 @@ const {
   Payment,
   User,
 } = require("../models");
-const { getShippingCost } = require("../services/jntService");
+const { getShippingCost, trackJntShipment } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
 const crypto = require("crypto");
 
@@ -285,5 +285,42 @@ exports.getOrderById = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Failed to get order detail", error: error.message });
+  }
+};
+
+exports.trackOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { orderId } = req.params;
+
+    const order = await Order.findOne({ where: { id: orderId, userId } });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (!order.tracking_number) {
+      return res
+        .status(400)
+        .json({ message: "Order does not have waybill yet" });
+    }
+
+    const trackingData = await trackJntShipment(order.tracking_number);
+
+    if (trackingData.error_id) {
+      return res.status(400).json({
+        message: trackingData.error_message || "Failed to get tracking data",
+      });
+    }
+
+    return res.json({
+      message: "Tracking data retrieved successfully",
+      tracking: trackingData,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to track order",
+      error: error.message,
+    });
   }
 };

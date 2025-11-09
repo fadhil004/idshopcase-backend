@@ -141,4 +141,37 @@ const createJntOrder = async (order, address, orderItems) => {
   }
 };
 
-module.exports = { getShippingCost, createJntOrder };
+const trackJntShipment = async (awb) => {
+  try {
+    const url = process.env.JNT_TRACK_URL;
+    const eccompanyid = process.env.JNT_USERNAME;
+    const username = process.env.JNT_USERNAME;
+    const password = process.env.JNT_PW_TRACK;
+
+    const auth = Buffer.from(`${username}:${password}`).toString("base64");
+
+    const requestBody = {
+      awb,
+      eccompanyid,
+    };
+
+    const response = await axios.post(url, JSON.stringify(requestBody), {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${auth}`,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("JNT Tracking Error:", error.response?.data || error.message);
+    return {
+      error: true,
+      message:
+        error.response?.data?.error_message ||
+        "Failed to track shipment. Please try again later.",
+    };
+  }
+};
+
+module.exports = { getShippingCost, createJntOrder, trackJntShipment };
