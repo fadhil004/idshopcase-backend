@@ -32,15 +32,29 @@ module.exports = {
   updateProduct: async (req, res) => {
     try {
       const { id } = req.params;
-      const { description, price, stock } = req.body;
+      const {
+        name,
+        description,
+        price,
+        stock,
+        category,
+        material,
+        variation,
+        phone_type,
+      } = req.body;
 
       const product = await Product.findByPk(id);
       if (!product)
         return res.status(404).json({ message: "Product not found" });
 
+      product.name = name || product.name;
       product.description = description || product.description;
       product.price = price || product.price;
       product.stock = stock || product.stock;
+      product.category = category || product.category;
+      product.material = material || product.material;
+      product.variation = variation || product.variation;
+      product.phone_type = phone_type || product.phone_type;
 
       await product.save();
 

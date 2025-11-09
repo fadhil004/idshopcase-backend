@@ -145,6 +145,33 @@ module.exports = {
     }
   },
 
+  getAddressById: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const address = await Address.findOne({
+        where: { id, userId: req.user.id },
+        attributes: [
+          "id",
+          "recipient_name",
+          "phone",
+          "province",
+          "city",
+          "district",
+          "postal_code",
+          "details",
+          "is_primary",
+        ],
+      });
+
+      if (!address)
+        return res.status(404).json({ message: "Address not found" });
+
+      return res.json({ address });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  },
+
   updateAddress: async (req, res) => {
     try {
       const { id } = req.params;
