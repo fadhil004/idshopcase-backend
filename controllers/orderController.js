@@ -8,7 +8,7 @@ const {
   Payment,
   User,
 } = require("../models");
-const { getShippingCost } = require("../services/jntService");
+const { getShippingCost, trackJntShipment } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
 const crypto = require("crypto");
 
@@ -17,8 +17,16 @@ exports.getOrderSummary = async (req, res) => {
     const userId = req.user.id;
     const { addressId, selectedItemIds } = req.body;
 
-    const address = await Address.findByPk(addressId);
+    const address = await Address.findByPk(addressId, {
+      include: [{ model: JntAddressMapping, as: "JntMapping" }],
+    });
     if (!address) return res.status(404).json({ message: "Address not found" });
+
+    const jnt = address.JntMapping;
+    if (!jnt)
+      return res
+        .status(400)
+        .json({ message: "J&T mapping not found for this address" });
 
     const cart = await Cart.findOne({
       where: { userId },
@@ -50,8 +58,8 @@ exports.getOrderSummary = async (req, res) => {
       error: shippingError,
     } = await getShippingCost({
       weight: totalWeight,
-      sendSiteCode: "JAKARTA",
-      destAreaCode: "KALIDERES",
+      sendSiteCode: "CIBINONG",
+      destAreaCode: jnt.jnt_area_code,
     });
 
     if (shippingError) {
@@ -95,8 +103,16 @@ exports.createOrder = async (req, res) => {
     const { addressId, selectedItemIds } = req.body;
 
     const user = await User.findByPk(userId);
-    const address = await Address.findByPk(addressId);
+    const address = await Address.findByPk(addressId, {
+      include: [{ model: JntAddressMapping, as: "JntMapping" }],
+    });
     if (!address) return res.status(404).json({ message: "Address not found" });
+
+    const jnt = address.JntMapping;
+    if (!jnt)
+      return res
+        .status(400)
+        .json({ message: "J&T mapping not found for this address" });
 
     const cart = await Cart.findOne({
       where: { userId },
@@ -124,8 +140,8 @@ exports.createOrder = async (req, res) => {
 
     const { cost: shippingCost, error: shippingError } = await getShippingCost({
       weight: totalWeight,
-      sendSiteCode: "JAKARTA", // asal pengiriman
-      destAreaCode: "KALIDERES", // kode kecamatan tujuan
+      sendSiteCode: "CIBINONG", // asal pengiriman
+      destAreaCode: jnt.jnt_area_code, // kode kecamatan tujuan
     });
 
     if (shippingError) {
@@ -188,5 +204,139 @@ exports.createOrder = async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to create order", error: error.message });
+  }
+};
+
+exports.getOrders = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const orders = await Order.findAll({
+      where: { userId },
+      include: [
+        {
+          model: OrderItem,
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "price", "image"],
+            },
+          ],
+        },
+        {
+          model: Payment,
+          attributes: ["id", "payment_gateway", "status", "amount"],
+        },
+        {
+          model: Address,
+          attributes: [
+            "id",
+            "recipient_name",
+            "phone",
+            "province",
+            "city",
+            "district",
+            "postal_code",
+            "details",
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    if (!orders || orders.length === 0)
+      return res.status(404).json({ message: "No orders found" });
+
+    return res.json({ message: "Orders retrieved", orders });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "Failed to retrieve orders", error: error.message });
+  }
+};
+
+exports.getOrderById = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const order = await Order.findOne({
+      where: { id, userId },
+      include: [
+        {
+          model: OrderItem,
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "price", "image"],
+            },
+          ],
+        },
+        {
+          model: Payment,
+          attributes: ["id", "payment_gateway", "status", "amount"],
+        },
+        {
+          model: Address,
+          attributes: [
+            "id",
+            "recipient_name",
+            "phone",
+            "province",
+            "city",
+            "district",
+            "postal_code",
+            "details",
+          ],
+        },
+      ],
+    });
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    return res.json({ message: "Order detail retrieved", order });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "Failed to get order detail", error: error.message });
+  }
+};
+
+exports.trackOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { orderId } = req.params;
+
+    const order = await Order.findOne({ where: { id: orderId, userId } });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (!order.tracking_number) {
+      return res
+        .status(400)
+        .json({ message: "Order does not have waybill yet" });
+    }
+
+    const trackingData = await trackJntShipment(order.tracking_number);
+
+    if (trackingData.error_id) {
+      return res.status(400).json({
+        message: trackingData.error_message || "Failed to get tracking data",
+      });
+    }
+
+    return res.json({
+      message: "Tracking data retrieved successfully",
+      tracking: trackingData,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to track order",
+      error: error.message,
+    });
   }
 };

@@ -10,6 +10,10 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       Address.belongsTo(models.User, { foreignKey: "userId" });
       Address.hasMany(models.Order, { foreignKey: "addressId" });
+      Address.belongsTo(models.JntAddressMapping, {
+        foreignKey: "jntAddressMappingId",
+        as: "JntMapping",
+      });
     }
   }
   Address.init(
@@ -23,6 +27,7 @@ module.exports = (sequelize, DataTypes) => {
       postal_code: DataTypes.STRING,
       details: DataTypes.TEXT,
       is_primary: DataTypes.BOOLEAN,
+      jntAddressMappingId: DataTypes.INTEGER,
     },
     {
       sequelize,

@@ -1,4 +1,5 @@
-const { User, Address } = require("../models");
+const { User, Address, JntAddressMapping } = require("../models");
+
 const { hashPassword, comparePassword } = require("../utils/hash");
 const fs = require("fs");
 const path = require("path");
@@ -7,7 +8,7 @@ module.exports = {
   getProfile: async (req, res) => {
     try {
       const user = await User.findByPk(req.user.id, {
-        attributes: ["id", "name", "email", "phone", "profile_picture"],
+        attributes: ["id", "name", "email", "phone", "profile_picture", "role"],
         include: [{ model: Address, as: "Addresses" }],
       });
 
@@ -100,6 +101,20 @@ module.exports = {
         );
       }
 
+      const mapping = await JntAddressMapping.findOne({
+        where: {
+          province,
+          city,
+          district,
+        },
+      });
+
+      if (!mapping) {
+        return res.status(400).json({
+          message: "Alamat tidak valid atau belum terdaftar di J&T mapping",
+        });
+      }
+
       const newAddress = await Address.create({
         userId: req.user.id,
         recipient_name,
@@ -110,6 +125,7 @@ module.exports = {
         postal_code,
         details,
         is_primary: !!is_primary,
+        jntAddressMappingId: mapping.id,
       });
 
       return res.status(201).json({ message: "Address added", newAddress });
@@ -145,6 +161,33 @@ module.exports = {
     }
   },
 
+  getAddressById: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const address = await Address.findOne({
+        where: { id, userId: req.user.id },
+        attributes: [
+          "id",
+          "recipient_name",
+          "phone",
+          "province",
+          "city",
+          "district",
+          "postal_code",
+          "details",
+          "is_primary",
+        ],
+      });
+
+      if (!address)
+        return res.status(404).json({ message: "Address not found" });
+
+      return res.json({ address });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  },
+
   updateAddress: async (req, res) => {
     try {
       const { id } = req.params;
@@ -163,6 +206,30 @@ module.exports = {
         where: { id, userId: req.user.id },
       });
       if (!addr) return res.status(404).json({ message: "Address not found" });
+
+      let mapping = null;
+      if (province || city || district) {
+        const newProvince = province || addr.province;
+        const newCity = city || addr.city;
+        const newDistrict = district || addr.district;
+
+        mapping = await JntAddressMapping.findOne({
+          where: {
+            province: newProvince,
+            city: newCity,
+            district: newDistrict,
+          },
+        });
+
+        if (!mapping) {
+          return res.status(400).json({
+            message:
+              "Alamat tidak valid atau belum terdaftar di J&T mapping. Pastikan provinsi, kota, dan kecamatan sesuai.",
+          });
+        }
+
+        addr.jntAddressMappingId = mapping.id;
+      }
 
       if (is_primary === true) {
         // kalau alamat ini SUDAH primary, tidak perlu reset
@@ -188,7 +255,11 @@ module.exports = {
 
       await addr.save();
 
-      return res.json({ message: "Address updated", addr });
+      return res.json({
+        message: "Address updated",
+        addr,
+        mapping: mapping ? mapping : "Mapping unchanged",
+      });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

@@ -43,8 +43,8 @@ async function createDokuCheckout(order, user, requestId) {
     },
     payment: { payment_due_date: 60 },
     customer: {
-      name: user.name || "Customer",
-      email: user.email || "customer@example.com",
+      name: user.name,
+      email: user.email,
     },
     redirect: {
       success_url: `${APP_BASE_URL}/payment/success`,

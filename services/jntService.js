@@ -71,6 +71,11 @@ const createJntOrder = async (order, address, orderItems) => {
       0
     );
 
+    const mapping = address.JntMapping;
+    if (!mapping) {
+      throw new Error("Missing J&T mapping for this address");
+    }
+
     const data = {
       username,
       api_key,
@@ -85,8 +90,8 @@ const createJntOrder = async (order, address, orderItems) => {
       receiver_phone: address.phone,
       receiver_addr: `${address.details}, ${address.district}, ${address.city}, ${address.province}`,
       receiver_zip: address.postal_code || "00000",
-      destination_code: "PKU", // sesuaikan kalau kamu punya mapping code
-      receiver_area: "PKU001", // sesuaikan juga
+      destination_code: mapping.jnt_city_code, // sesuaikan kalau kamu punya mapping code
+      receiver_area: mapping.jnt_area_code, // sesuaikan juga
       qty: totalQty,
       weight: totalWeight,
       goodsdesc: "Custom Phone Case & Accessories",
@@ -141,4 +146,37 @@ const createJntOrder = async (order, address, orderItems) => {
   }
 };
 
-module.exports = { getShippingCost, createJntOrder };
+const trackJntShipment = async (awb) => {
+  try {
+    const url = process.env.JNT_TRACK_URL;
+    const eccompanyid = process.env.JNT_USERNAME;
+    const username = process.env.JNT_USERNAME;
+    const password = process.env.JNT_PW_TRACK;
+
+    const auth = Buffer.from(`${username}:${password}`).toString("base64");
+
+    const requestBody = {
+      awb,
+      eccompanyid,
+    };
+
+    const response = await axios.post(url, JSON.stringify(requestBody), {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${auth}`,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("JNT Tracking Error:", error.response?.data || error.message);
+    return {
+      error: true,
+      message:
+        error.response?.data?.error_message ||
+        "Failed to track shipment. Please try again later.",
+    };
+  }
+};
+
+module.exports = { getShippingCost, createJntOrder, trackJntShipment };
