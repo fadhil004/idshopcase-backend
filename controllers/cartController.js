@@ -1,4 +1,13 @@
-const { Cart, CartItem, Product, CustomImage } = require("../models");
+const {
+  Cart,
+  CartItem,
+  Product,
+  CustomImage,
+  Material,
+  Variant,
+  PhoneType,
+  ProductImage,
+} = require("../models");
 
 module.exports = {
   getCart: async (req, res) => {
@@ -32,7 +41,12 @@ module.exports = {
       const { productId, customImageId, quantity } = req.body;
 
       const product = await Product.findByPk(productId, {
-        include: [{ model: ProductImage }],
+        iinclude: [
+          { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
+          { model: Material, attributes: ["id", "name"] },
+          { model: Variant, attributes: ["id", "name"] },
+          { model: PhoneType, attributes: ["id", "brand", "model"] },
+        ],
       });
       if (!product) {
         return res.status(404).json({ message: "Product not found" });

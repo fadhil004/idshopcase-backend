@@ -1,4 +1,11 @@
-const { Product, CustomImage, ProductImage } = require("../models");
+const {
+  Product,
+  CustomImage,
+  ProductImage,
+  Material,
+  Variant,
+  PhoneType,
+} = require("../models");
 const path = require("path");
 const fs = require("fs");
 
@@ -8,6 +15,9 @@ module.exports = {
       const products = await Product.findAll({
         include: [
           { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
+          { model: Material, attributes: ["id", "name"] },
+          { model: Variant, attributes: ["id", "name"] },
+          { model: PhoneType, attributes: ["id", "brand", "model"] },
         ],
       });
       return res.json(products);
@@ -19,7 +29,12 @@ module.exports = {
   getProductById: async (req, res) => {
     try {
       const product = await Product.findByPk(req.params.id, {
-        include: [{ model: ProductImage }],
+        include: [
+          { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
+          { model: Material, attributes: ["id", "name"] },
+          { model: Variant, attributes: ["id", "name"] },
+          { model: PhoneType, attributes: ["id", "brand", "model"] },
+        ],
       });
       if (!product)
         return res.status(404).json({ message: "Product not found" });

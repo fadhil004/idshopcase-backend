@@ -1,19 +1,20 @@
 "use strict";
 const { Model } = require("sequelize");
+
 module.exports = (sequelize, DataTypes) => {
   class Product extends Model {
-    /**
-     * Helper method for defining associations.
-     * This method is not a part of Sequelize lifecycle.
-     * The `models/index` file will call this method automatically.
-     */
     static associate(models) {
+      Product.belongsTo(models.PhoneType, { foreignKey: "phoneTypeId" });
+      Product.belongsTo(models.Material, { foreignKey: "materialId" });
+      Product.belongsTo(models.Variant, { foreignKey: "variantId" });
+
       Product.hasMany(models.CustomImage, { foreignKey: "productId" });
       Product.hasMany(models.CartItem, { foreignKey: "productId" });
       Product.hasMany(models.OrderItem, { foreignKey: "productId" });
       Product.hasMany(models.ProductImage, { foreignKey: "productId" });
     }
   }
+
   Product.init(
     {
       name: DataTypes.STRING,
@@ -24,17 +25,21 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
-      material: {
-        type: DataTypes.STRING,
-        allowNull: true,
+      phoneTypeId: {
+        type: DataTypes.INTEGER,
+        references: { model: "PhoneTypes", key: "id" },
       },
-      variation: DataTypes.STRING,
-      phone_type: DataTypes.STRING,
+      materialId: {
+        type: DataTypes.INTEGER,
+        references: { model: "Materials", key: "id" },
+      },
+      variantId: {
+        type: DataTypes.INTEGER,
+        references: { model: "Variants", key: "id" },
+      },
     },
-    {
-      sequelize,
-      modelName: "Product",
-    }
+    { sequelize, modelName: "Product" }
   );
+
   return Product;
 };

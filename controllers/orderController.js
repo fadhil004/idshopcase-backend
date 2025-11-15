@@ -7,6 +7,8 @@ const {
   OrderItem,
   Payment,
   User,
+  ProductImage,
+  JntAddressMapping,
 } = require("../models");
 const { getShippingCost, trackJntShipment } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
@@ -51,6 +53,7 @@ exports.getOrderSummary = async (req, res) => {
       (acc, item) => acc + 0.1 * item.quantity,
       0
     );
+    console.log(jnt.jnt_district);
 
     const {
       cost: shippingCost,
@@ -59,7 +62,7 @@ exports.getOrderSummary = async (req, res) => {
     } = await getShippingCost({
       weight: totalWeight,
       sendSiteCode: "CIBINONG",
-      destAreaCode: jnt.jnt_area_code,
+      destAreaCode: jnt.jnt_district,
     });
 
     if (shippingError) {
@@ -141,7 +144,7 @@ exports.createOrder = async (req, res) => {
     const { cost: shippingCost, error: shippingError } = await getShippingCost({
       weight: totalWeight,
       sendSiteCode: "CIBINONG", // asal pengiriman
-      destAreaCode: jnt.jnt_area_code, // kode kecamatan tujuan
+      destAreaCode: jnt.jnt_district, // kode kecamatan tujuan
     });
 
     if (shippingError) {
@@ -219,7 +222,13 @@ exports.getOrders = async (req, res) => {
           include: [
             {
               model: Product,
-              attributes: ["id", "name", "price", "image"],
+              attributes: ["id", "name", "price"],
+              include: [
+                {
+                  model: ProductImage,
+                  attributes: ["id", "imageUrl", "isPrimary"],
+                },
+              ],
             },
           ],
         },
@@ -269,7 +278,13 @@ exports.getOrderById = async (req, res) => {
           include: [
             {
               model: Product,
-              attributes: ["id", "name", "price", "image"],
+              attributes: ["id", "name", "price"],
+              include: [
+                {
+                  model: ProductImage,
+                  attributes: ["id", "imageUrl", "isPrimary"],
+                },
+              ],
             },
           ],
         },
