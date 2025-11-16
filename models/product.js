@@ -4,9 +4,20 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class Product extends Model {
     static associate(models) {
-      Product.belongsTo(models.PhoneType, { foreignKey: "phoneTypeId" });
-      Product.belongsTo(models.Material, { foreignKey: "materialId" });
-      Product.belongsTo(models.Variant, { foreignKey: "variantId" });
+      Product.belongsToMany(models.PhoneType, {
+        through: "ProductPhoneTypes",
+        foreignKey: "productId",
+      });
+
+      Product.belongsToMany(models.Material, {
+        through: "ProductMaterials",
+        foreignKey: "productId",
+      });
+
+      Product.belongsToMany(models.Variant, {
+        through: "ProductVariants",
+        foreignKey: "productId",
+      });
 
       Product.hasMany(models.CustomImage, { foreignKey: "productId" });
       Product.hasMany(models.CartItem, { foreignKey: "productId" });
@@ -24,18 +35,6 @@ module.exports = (sequelize, DataTypes) => {
       category: {
         type: DataTypes.STRING,
         allowNull: false,
-      },
-      phoneTypeId: {
-        type: DataTypes.INTEGER,
-        references: { model: "PhoneTypes", key: "id" },
-      },
-      materialId: {
-        type: DataTypes.INTEGER,
-        references: { model: "Materials", key: "id" },
-      },
-      variantId: {
-        type: DataTypes.INTEGER,
-        references: { model: "Variants", key: "id" },
       },
     },
     { sequelize, modelName: "Product" }

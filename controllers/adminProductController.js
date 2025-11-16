@@ -44,9 +44,9 @@ module.exports = {
         price,
         stock,
         category,
-        materialId,
-        variantId,
-        phoneTypeId,
+        materials,
+        variants,
+        phoneTypes,
       } = req.body;
 
       if (!name || !price || !stock || !category) {
@@ -61,10 +61,11 @@ module.exports = {
         price,
         stock,
         category,
-        materialId,
-        variantId,
-        phoneTypeId,
       });
+
+      if (phoneTypes) await product.setPhoneTypes(phoneTypes);
+      if (materials) await product.setMaterials(materials);
+      if (variants) await product.setVariants(variants);
 
       if (req.files && req.files.length > 0) {
         const productImages = req.files.map((file, index) => ({
@@ -77,12 +78,7 @@ module.exports = {
       }
 
       const newProduct = await Product.findByPk(product.id, {
-        include: [
-          { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
-          { model: Material, attributes: ["id", "name"] },
-          { model: Variant, attributes: ["id", "name"] },
-          { model: PhoneType, attributes: ["id", "brand", "model"] },
-        ],
+        include: [ProductImage, Material, Variant, PhoneType],
       });
 
       return res.status(201).json({
@@ -103,25 +99,26 @@ module.exports = {
         price,
         stock,
         category,
-        materialId,
-        variantId,
-        phoneTypeId,
+        materials,
+        variants,
+        phoneTypes,
       } = req.body;
 
       const product = await Product.findByPk(id);
       if (!product)
         return res.status(404).json({ message: "Product not found" });
 
-      product.name = name || product.name;
-      product.description = description || product.description;
-      product.price = price || product.price;
-      product.stock = stock || product.stock;
-      product.category = category || product.category;
-      product.materialId = materialId || product.materialId;
-      product.variantId = variantId || product.variantId;
-      product.phoneTypeId = phoneTypeId || product.phoneTypeId;
+      await product.update({
+        name,
+        description,
+        price,
+        stock,
+        category,
+      });
 
-      await product.save();
+      if (phoneTypes) await product.setPhoneTypes(phoneTypes);
+      if (materials) await product.setMaterials(materials);
+      if (variants) await product.setVariants(variants);
 
       if (req.files && req.files.length > 0) {
         const productImages = req.files.map((file, index) => ({
@@ -134,12 +131,7 @@ module.exports = {
       }
 
       const updatedProduct = await Product.findByPk(product.id, {
-        include: [
-          { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
-          { model: Material, attributes: ["id", "name"] },
-          { model: Variant, attributes: ["id", "name"] },
-          { model: PhoneType, attributes: ["id", "brand", "model"] },
-        ],
+        include: [ProductImage, Material, Variant, PhoneType],
       });
 
       return res.json({
@@ -173,12 +165,7 @@ module.exports = {
     try {
       const { id } = req.params;
       const product = await Product.findByPk(id, {
-        include: [
-          { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
-          { model: Material, attributes: ["id", "name"] },
-          { model: Variant, attributes: ["id", "name"] },
-          { model: PhoneType, attributes: ["id", "brand", "model"] },
-        ],
+        include: [ProductImage],
       });
 
       if (!product) {
@@ -192,6 +179,10 @@ module.exports = {
           await img.destroy();
         }
       }
+
+      await product.setPhoneTypes([]);
+      await product.setMaterials([]);
+      await product.setVariants([]);
 
       await product.destroy();
 
