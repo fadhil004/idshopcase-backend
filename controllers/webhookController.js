@@ -1,4 +1,11 @@
-const { Payment, Order, OrderItem, Product, Address } = require("../models");
+const {
+  Payment,
+  Order,
+  OrderItem,
+  Product,
+  Address,
+  JntAddressMapping,
+} = require("../models");
 const { createJntOrder } = require("../services/jntService");
 
 exports.handleDokuCallback = async (req, res) => {
@@ -35,7 +42,9 @@ exports.handleDokuCallback = async (req, res) => {
       }
 
       // CREATE JNT WAYBILL HERE
-      const address = await Address.findByPk(currentOrder.addressId);
+      const address = await Address.findByPk(currentOrder.addressId, {
+        include: [{ model: JntAddressMapping, as: "JntMapping" }],
+      });
       const jntRes = await createJntOrder(currentOrder, address, orderItems);
 
       if (jntRes.success) {

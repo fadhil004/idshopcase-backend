@@ -191,16 +191,15 @@ exports.createOrder = async (req, res) => {
         .json({ message: "Please select items or use Buy Now" });
     }
 
-    // const { cost: shippingCost, error: shippingError } = await getShippingCost({
-    //   weight: totalWeight,
-    //   sendSiteCode: "CIBINONG", // asal pengiriman
-    //   destAreaCode: jnt.jnt_district, // kode kecamatan tujuan
-    // });
+    const { cost: shippingCost, error: shippingError } = await getShippingCost({
+      weight: totalWeight,
+      sendSiteCode: "JAKARTA", // asal pengiriman
+      destAreaCode: jnt.jnt_district, // kode kecamatan tujuan
+    });
 
-    // if (shippingError) {
-    //   throw new Error(`Failed to get shipping cost: ${shippingError}`);
-    // }
-    shippingCost = 5000;
+    if (shippingError) {
+      throw new Error(`Failed to get shipping cost: ${shippingError}`);
+    }
     console.log("===========", shippingCost);
     const totalPrice = subtotal + shippingCost;
 

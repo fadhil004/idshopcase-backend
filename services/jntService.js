@@ -133,6 +133,15 @@ const createJntOrder = async (order, address, orderItems) => {
     const response = await axios.post(apiUrl, body, { headers });
     const result = response.data;
 
+    // Log the request
+    console.log("=== JNT Order Creation Request ===");
+    console.log("API URL:", apiUrl);
+    console.log("Request Data:", data_json);
+    console.log("Request Body:", body);
+
+    // Log the response
+    console.log("=== JNT Order Creation Response ===");
+    console.log(result);
     if (result.success && result.detail && result.detail[0].awb_no) {
       console.log("J&T Order Success:", result.detail[0]);
       return {
