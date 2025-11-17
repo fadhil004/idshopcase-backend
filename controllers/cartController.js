@@ -19,14 +19,26 @@ module.exports = {
         include: [
           {
             model: CartItem,
-            include: [Product, CustomImage],
+            include: [
+              {
+                model: Product,
+                include: [
+                  { model: ProductImage },
+                  { model: Material },
+                  { model: Variant },
+                  { model: PhoneType },
+                ],
+              },
+              CustomImage,
+              Material,
+              Variant,
+              PhoneType,
+            ],
           },
         ],
       });
 
-      if (!cart) {
-        return res.status(404).json({ message: "Cart not found" });
-      }
+      if (!cart) return res.status(404).json({ message: "Cart not found" });
 
       return res.json(cart);
     } catch (err) {
@@ -38,19 +50,27 @@ module.exports = {
   addToCart: async (req, res) => {
     try {
       const userId = req.user.id;
-      const { productId, customImageId, quantity } = req.body;
+
+      const {
+        productId,
+        customImageId,
+        quantity,
+        phoneTypeId,
+        materialId,
+        variantId,
+      } = req.body;
 
       const product = await Product.findByPk(productId, {
-        iinclude: [
-          { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
-          { model: Material, attributes: ["id", "name"] },
-          { model: Variant, attributes: ["id", "name"] },
-          { model: PhoneType, attributes: ["id", "brand", "model"] },
+        include: [
+          { model: ProductImage },
+          { model: Material },
+          { model: Variant },
+          { model: PhoneType },
         ],
       });
-      if (!product) {
+
+      if (!product)
         return res.status(404).json({ message: "Product not found" });
-      }
 
       const [cart] = await Cart.findOrCreate({ where: { userId } });
 
@@ -59,6 +79,9 @@ module.exports = {
           cartId: cart.id,
           productId,
           customImageId: customImageId || null,
+          phoneTypeId: phoneTypeId || null,
+          materialId: materialId || null,
+          variantId: variantId || null,
         },
         include: [Product],
       });
@@ -68,20 +91,21 @@ module.exports = {
         existingItem.price = existingItem.Product.price * existingItem.quantity;
         await existingItem.save();
 
-        return res.json({ message: "Cart item updated", item: existingItem });
-      } else {
-        const newItem = await CartItem.create({
-          cartId: cart.id,
-          productId,
-          customImageId: customImageId || null,
-          quantity,
-          price: product.price * quantity,
-        });
-
-        return res
-          .status(201)
-          .json({ message: "Item added to cart", item: newItem });
+        return res.json({ message: "Cart updated", item: existingItem });
       }
+
+      const newItem = await CartItem.create({
+        cartId: cart.id,
+        productId,
+        customImageId: customImageId || null,
+        quantity,
+        phoneTypeId: phoneTypeId || null,
+        materialId: materialId || null,
+        variantId: variantId || null,
+        price: product.price * quantity,
+      });
+
+      return res.status(201).json({ message: "Item added", item: newItem });
     } catch (err) {
       console.error(err);
       return res.status(500).json({ error: err.message });
@@ -94,9 +118,7 @@ module.exports = {
       const { quantity } = req.body;
 
       const item = await CartItem.findByPk(id, { include: [Product] });
-      if (!item) {
-        return res.status(404).json({ message: "Cart item not found" });
-      }
+      if (!item) return res.status(404).json({ message: "Item not found" });
 
       item.quantity = quantity;
       item.price = item.Product.price * quantity;
@@ -114,9 +136,7 @@ module.exports = {
       const { id } = req.params;
 
       const item = await CartItem.findByPk(id);
-      if (!item) {
-        return res.status(404).json({ message: "Cart item not found" });
-      }
+      if (!item) return res.status(404).json({ message: "Item not found" });
 
       await item.destroy();
       return res.json({ message: "Item removed from cart" });

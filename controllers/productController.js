@@ -49,19 +49,19 @@ module.exports = {
       const { productId } = req.body;
       const product = await Product.findByPk(productId);
 
-      if (!product || product.category !== "custom_case") {
-        return res
-          .status(400)
-          .json({ message: "Invalid product for custom image" });
-      }
+      // if (!product || product.category !== "custom_case") {
+      //   return res
+      //     .status(400)
+      //     .json({ message: "Invalid product for custom image" });
+      // }
 
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: "No files uploaded" });
       }
 
-      if (req.files.length > 2) {
-        return res.status(400).json({ message: "Maximum 2 images allowed" });
-      }
+      // if (req.files.length > 2) {
+      //   return res.status(400).json({ message: "Maximum 2 images allowed" });
+      // }
 
       const uploadedImages = [];
       for (const file of req.files) {

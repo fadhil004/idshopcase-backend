@@ -103,43 +103,93 @@ exports.createOrder = async (req, res) => {
   const t = await Order.sequelize.transaction();
   try {
     const userId = req.user.id;
-    const { addressId, selectedItemIds } = req.body;
+    const { addressId, selectedItemIds, buyNow } = req.body;
 
     const user = await User.findByPk(userId);
+    if (!user) {
+      await t.rollback();
+      return res.status(404).json({ message: "User not found" });
+    }
     const address = await Address.findByPk(addressId, {
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
     });
-    if (!address) return res.status(404).json({ message: "Address not found" });
+    if (!address) {
+      await t.rollback();
+      return res.status(404).json({ message: "Address not found" });
+    }
 
     const jnt = address.JntMapping;
-    if (!jnt)
+    if (!jnt) {
+      await t.rollback();
       return res
         .status(400)
         .json({ message: "J&T mapping not found for this address" });
+    }
 
-    const cart = await Cart.findOne({
-      where: { userId },
-      include: [
-        {
-          model: CartItem,
-          include: [Product],
-          where: { id: selectedItemIds },
-        },
-      ],
-    });
+    let items = [];
+    let subtotal = 0;
+    let totalWeight = 0;
 
-    if (!cart || cart.CartItems.length === 0)
-      return res.status(400).json({ message: "No selected items found" });
+    if (buyNow && buyNow.productId && buyNow.quantity) {
+      const product = await Product.findByPk(buyNow.productId);
+      if (!product) {
+        await t.rollback();
+        return res.status(404).json({ message: "Product not found" });
+      }
 
-    const subtotal = cart.CartItems.reduce(
-      (acc, item) => acc + parseFloat(item.price),
-      0
-    );
+      items.push({
+        productId: product.id,
+        quantity: buyNow.quantity,
+        price: product.price,
+        phoneTypeId: buyNow.phoneTypeId || null,
+        materialId: buyNow.materialId || null,
+        variantId: buyNow.variantId || null,
+      });
 
-    const totalWeight = cart.CartItems.reduce(
-      (acc, item) => acc + 0.1 * item.quantity,
-      0
-    );
+      subtotal = parseFloat(product.price) * buyNow.quantity;
+      totalWeight = 0.1 * buyNow.quantity;
+    } else if (selectedItemIds && selectedItemIds.length > 0) {
+      const cart = await Cart.findOne({
+        where: { userId },
+        include: [
+          {
+            model: CartItem,
+            include: [Product],
+            where: { id: selectedItemIds },
+          },
+        ],
+      });
+
+      if (!cart || cart.CartItems.length === 0) {
+        await t.rollback();
+        return res.status(400).json({ message: "No selected items found" });
+      }
+
+      items = cart.CartItems.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        phoneTypeId: item.phoneTypeId || null,
+        materialId: item.materialId || null,
+        variantId: item.variantId || null,
+        cartItemInstance: item,
+      }));
+
+      subtotal = cart.CartItems.reduce(
+        (acc, item) => acc + parseFloat(item.price),
+        0
+      );
+
+      totalWeight = cart.CartItems.reduce(
+        (acc, item) => acc + 0.1 * item.quantity,
+        0
+      );
+    } else {
+      await t.rollback();
+      return res
+        .status(400)
+        .json({ message: "Please select items or use Buy Now" });
+    }
 
     // const { cost: shippingCost, error: shippingError } = await getShippingCost({
     //   weight: totalWeight,
@@ -168,18 +218,24 @@ exports.createOrder = async (req, res) => {
       { transaction: t }
     );
 
-    for (const item of cart.CartItems) {
+    for (const item of items) {
       await OrderItem.create(
         {
           orderId: order.id,
           productId: item.productId,
           quantity: item.quantity,
           price: item.price,
+          phoneTypeId: item.phoneTypeId,
+          materialId: item.materialId,
+          variantId: item.variantId,
         },
         { transaction: t }
       );
 
-      await item.destroy({ transaction: t });
+      // Hapus CartItem jika berasal dari cart
+      if (item.cartItemInstance) {
+        await item.cartItemInstance.destroy({ transaction: t });
+      }
     }
 
     const payment = await Payment.create(
@@ -203,7 +259,9 @@ exports.createOrder = async (req, res) => {
       checkout: dokuResponse,
     });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) {
+      await t.rollback();
+    }
     console.error(error);
     res
       .status(500)

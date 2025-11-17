@@ -10,7 +10,7 @@ router.get("/:id", productController.getProductById);
 router.post(
   "/custom/upload",
   authenticate,
-  uploadProduct.array("images", 2),
+  uploadProduct.array("images", 12),
   productController.uploadCustomImage
 );
 

@@ -37,8 +37,12 @@ const getShippingCost = async ({ weight, sendSiteCode, destAreaCode }) => {
 
     const result = response.data;
 
-    console.log("=== JNT RAW RESPONSE ===");
-    console.log(dataJson);
+    console.log("=== JNT Shipping Cost Request ===");
+    console.log("API URL:", apiUrl);
+    console.log("Request Data:", dataJson);
+    console.log("Request Body:", body);
+
+    console.log("=== JNT Shipping Cost Response ===");
     console.log(result);
     if (result.is_success === "true") {
       const content = JSON.parse(result.content);

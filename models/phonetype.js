@@ -7,6 +7,8 @@ module.exports = (sequelize, DataTypes) => {
         through: "ProductPhoneTypes",
         foreignKey: "phoneTypeId",
       });
+      PhoneType.hasMany(models.CartItem, { foreignKey: "phoneTypeId" });
+      PhoneType.hasMany(models.OrderItem, { foreignKey: "phoneTypeId" });
     }
   }
 

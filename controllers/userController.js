@@ -5,6 +5,47 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = {
+  createUserByAdmin: async (req, res) => {
+    try {
+      const { name, email, phone, password, role } = req.body;
+
+      const existEmail = await User.findOne({ where: { email } });
+      if (existEmail) {
+        return res.status(400).json({ message: "Email already used" });
+      }
+
+      const existPhone = await User.findOne({ where: { phone } });
+      if (existPhone) {
+        return res.status(400).json({ message: "Phone already used" });
+      }
+
+      const hashedPassword = await hashPassword(password);
+
+      const user = await User.create({
+        name,
+        email,
+        phone,
+        password: hashedPassword,
+        role: role || "customer",
+      });
+
+      const {
+        password: _,
+        resetPasswordToken,
+        resetPasswordExpire,
+        ...data
+      } = user.toJSON();
+
+      return res.status(201).json({
+        message: "User successfully created by admin",
+        user: data,
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: err.message });
+    }
+  },
+
   getProfile: async (req, res) => {
     try {
       const user = await User.findByPk(req.user.id, {

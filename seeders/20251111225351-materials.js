@@ -18,9 +18,23 @@ module.exports = {
         updatedAt: new Date(),
       },
       {
-        name: "Magsafe Diamond Impact X2",
+        name: "Armor Impact",
+        description:
+          "Perlindungan ekstra dengan material tahan banting dan anti-scratch.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        name: "Magsafe Diamond Impact",
         description:
           "Tipe premium dengan kompatibilitas Magsafe dan ketahanan ganda.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        name: "Magsafe Bumper Impact X2",
+        description:
+          "Perlindungan maksimal dengan bumper yang kompatibel dengan Magsafe dan daya tahan ganda.",
         createdAt: new Date(),
         updatedAt: new Date(),
       },

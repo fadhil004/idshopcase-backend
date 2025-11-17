@@ -8,6 +8,8 @@ module.exports = (sequelize, DataTypes) => {
         through: "ProductMaterials",
         foreignKey: "materialId",
       });
+      Material.hasMany(models.CartItem, { foreignKey: "materialId" });
+      Material.hasMany(models.OrderItem, { foreignKey: "materialId" });
     }
   }
 

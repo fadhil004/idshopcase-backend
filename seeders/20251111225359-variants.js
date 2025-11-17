@@ -15,6 +15,26 @@ module.exports = {
         createdAt: new Date(),
         updatedAt: new Date(),
       },
+      {
+        name: "7pcs",
+        description:
+          "Paket dengan 7 pilihan, cocok untuk koleksi yang lebih beragam.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        name: "9pcs",
+        description: "Paket dengan 9 pilihan, memberi lebih banyak variasi.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        name: "12pcs",
+        description:
+          "Paket lengkap dengan 12 pilihan, ideal untuk yang menginginkan lebih.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
     ]);
   },
 

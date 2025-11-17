@@ -11,6 +11,9 @@ module.exports = (sequelize, DataTypes) => {
       OrderItem.belongsTo(models.Order, { foreignKey: "orderId" });
       OrderItem.belongsTo(models.Product, { foreignKey: "productId" });
       OrderItem.belongsTo(models.CustomImage, { foreignKey: "customImageId" });
+      OrderItem.belongsTo(models.PhoneType, { foreignKey: "phoneTypeId" });
+      OrderItem.belongsTo(models.Material, { foreignKey: "materialId" });
+      OrderItem.belongsTo(models.Variant, { foreignKey: "variantId" });
     }
   }
   OrderItem.init(
@@ -20,6 +23,18 @@ module.exports = (sequelize, DataTypes) => {
       customImageId: DataTypes.INTEGER,
       quantity: DataTypes.INTEGER,
       price: DataTypes.DECIMAL,
+      phoneTypeId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      materialId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      variantId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
     },
     {
       sequelize,
