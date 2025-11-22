@@ -183,6 +183,13 @@ const trackJntShipment = async (awb) => {
       },
     });
 
+    console.log("=== JNT Tracking Request ===");
+    console.log("API URL:", url);
+    console.log("Request Body:", JSON.stringify(requestBody));
+
+    console.log("=== JNT Tracking Response ===");
+    console.log(response.data);
+
     return response.data;
   } catch (error) {
     console.error("JNT Tracking Error:", error.response?.data || error.message);

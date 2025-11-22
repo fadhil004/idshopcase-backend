@@ -94,6 +94,7 @@ module.exports = {
           email: user.email,
           phone: user.phone,
           profile_picture: user.profile_picture,
+          role: user.role,
         },
       });
     } catch (err) {
