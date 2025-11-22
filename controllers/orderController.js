@@ -1,12 +1,15 @@
 const {
   Cart,
   CartItem,
+  CustomImage,
   Product,
   Address,
   Order,
   OrderItem,
   Payment,
   User,
+  ProductImage,
+  JntAddressMapping,
 } = require("../models");
 const { getShippingCost, trackJntShipment } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
@@ -51,6 +54,7 @@ exports.getOrderSummary = async (req, res) => {
       (acc, item) => acc + 0.1 * item.quantity,
       0
     );
+    console.log(jnt.jnt_district);
 
     const {
       cost: shippingCost,
@@ -59,7 +63,7 @@ exports.getOrderSummary = async (req, res) => {
     } = await getShippingCost({
       weight: totalWeight,
       sendSiteCode: "CIBINONG",
-      destAreaCode: jnt.jnt_area_code,
+      destAreaCode: jnt.jnt_district,
     });
 
     if (shippingError) {
@@ -100,58 +104,133 @@ exports.createOrder = async (req, res) => {
   const t = await Order.sequelize.transaction();
   try {
     const userId = req.user.id;
-    const { addressId, selectedItemIds } = req.body;
+    const { addressId, selectedItemIds, buyNow: buyNowRaw } = req.body;
+
+    const buyNow = buyNowRaw ? JSON.parse(buyNowRaw) : null;
 
     const user = await User.findByPk(userId);
+    if (!user) {
+      await t.rollback();
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const address = await Address.findByPk(addressId, {
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
     });
-    if (!address) return res.status(404).json({ message: "Address not found" });
 
-    const jnt = address.JntMapping;
-    if (!jnt)
+    if (!address) {
+      await t.rollback();
+      return res.status(404).json({ message: "Address not found" });
+    }
+
+    if (!address.JntMapping) {
+      await t.rollback();
       return res
         .status(400)
         .json({ message: "J&T mapping not found for this address" });
+    }
 
-    const cart = await Cart.findOne({
-      where: { userId },
-      include: [
-        {
-          model: CartItem,
-          include: [Product],
-          where: { id: selectedItemIds },
-        },
-      ],
-    });
+    let items = [];
+    let subtotal = 0;
+    let totalWeight = 0;
 
-    if (!cart || cart.CartItems.length === 0)
-      return res.status(400).json({ message: "No selected items found" });
+    const customImageRecords = [];
 
-    const subtotal = cart.CartItems.reduce(
-      (acc, item) => acc + parseFloat(item.price),
-      0
-    );
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const imagePath = `/uploads/customs/${file.filename}`;
 
-    const totalWeight = cart.CartItems.reduce(
-      (acc, item) => acc + 0.1 * item.quantity,
-      0
-    );
+        const image = await CustomImage.create(
+          {
+            userId,
+            productId: buyNow?.productId || null, // bisa null bila cart
+            image_url: imagePath,
+            processed_url: null,
+          },
+          { transaction: t }
+        );
+
+        customImageRecords.push(image);
+      }
+    }
+
+    if (buyNow && buyNow.productId && buyNow.quantity) {
+      const product = await Product.findByPk(buyNow.productId);
+
+      if (!product) {
+        await t.rollback();
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      items.push({
+        productId: product.id,
+        quantity: buyNow.quantity,
+        price: product.price,
+        phoneTypeId: buyNow.phoneTypeId || null,
+        materialId: buyNow.materialId || null,
+        variantId: buyNow.variantId || null,
+        customImageId: customImageRecords[0]?.id || null, // <<<<<<<<<<<< AUTO
+      });
+
+      subtotal = parseFloat(product.price) * buyNow.quantity;
+      totalWeight = 0.1 * buyNow.quantity;
+    } else if (selectedItemIds) {
+      const cart = await Cart.findOne({
+        where: { userId },
+        include: [
+          {
+            model: CartItem,
+            include: [Product],
+            where: { id: selectedItemIds },
+          },
+        ],
+      });
+
+      if (!cart || cart.CartItems.length === 0) {
+        await t.rollback();
+        return res.status(400).json({ message: "No cart items found" });
+      }
+
+      items = cart.CartItems.map((item, i) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        phoneTypeId: item.phoneTypeId || null,
+        materialId: item.materialId || null,
+        variantId: item.variantId || null,
+        customImageId: customImageRecords[i]?.id || item.customImageId || null,
+        cartItemInstance: item,
+      }));
+
+      subtotal = cart.CartItems.reduce(
+        (acc, item) => acc + parseFloat(item.price),
+        0
+      );
+
+      totalWeight = cart.CartItems.reduce(
+        (acc, item) => acc + 0.1 * item.quantity,
+        0
+      );
+    } else {
+      await t.rollback();
+      return res
+        .status(400)
+        .json({ message: "Please select items or use Buy Now" });
+    }
 
     const { cost: shippingCost, error: shippingError } = await getShippingCost({
       weight: totalWeight,
-      sendSiteCode: "CIBINONG", // asal pengiriman
-      destAreaCode: jnt.jnt_area_code, // kode kecamatan tujuan
+      sendSiteCode: "JAKARTA",
+      destAreaCode: address.JntMapping.jnt_district,
     });
 
     if (shippingError) {
       throw new Error(`Failed to get shipping cost: ${shippingError}`);
     }
-    console.log("===========", shippingCost);
+
     const totalPrice = subtotal + shippingCost;
 
     const requestId = crypto.randomUUID();
-
     const order = await Order.create(
       {
         userId,
@@ -164,18 +243,24 @@ exports.createOrder = async (req, res) => {
       { transaction: t }
     );
 
-    for (const item of cart.CartItems) {
+    for (const item of items) {
       await OrderItem.create(
         {
           orderId: order.id,
           productId: item.productId,
           quantity: item.quantity,
           price: item.price,
+          phoneTypeId: item.phoneTypeId,
+          materialId: item.materialId,
+          variantId: item.variantId,
+          customImageId: item.customImageId || null,
         },
         { transaction: t }
       );
 
-      await item.destroy({ transaction: t });
+      if (item.cartItemInstance) {
+        await item.cartItemInstance.destroy({ transaction: t });
+      }
     }
 
     const payment = await Payment.create(
@@ -196,11 +281,11 @@ exports.createOrder = async (req, res) => {
       message: "Order created successfully",
       order,
       payment,
+      uploadedImages: customImageRecords,
       checkout: dokuResponse,
     });
   } catch (error) {
-    await t.rollback();
-    console.error(error);
+    if (!t.finished) await t.rollback();
     res
       .status(500)
       .json({ message: "Failed to create order", error: error.message });
@@ -219,7 +304,13 @@ exports.getOrders = async (req, res) => {
           include: [
             {
               model: Product,
-              attributes: ["id", "name", "price", "image"],
+              attributes: ["id", "name", "price"],
+              include: [
+                {
+                  model: ProductImage,
+                  attributes: ["id", "imageUrl", "isPrimary"],
+                },
+              ],
             },
           ],
         },
@@ -269,7 +360,13 @@ exports.getOrderById = async (req, res) => {
           include: [
             {
               model: Product,
-              attributes: ["id", "name", "price", "image"],
+              attributes: ["id", "name", "price"],
+              include: [
+                {
+                  model: ProductImage,
+                  attributes: ["id", "imageUrl", "isPrimary"],
+                },
+              ],
             },
           ],
         },
@@ -336,6 +433,133 @@ exports.trackOrder = async (req, res) => {
     console.error(error);
     res.status(500).json({
       message: "Failed to track order",
+      error: error.message,
+    });
+  }
+};
+
+exports.getAllOrdersByAdmin = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const whereCondition = {};
+    if (status) whereCondition.status = status;
+
+    const orders = await Order.findAll({
+      where: whereCondition,
+      include: [
+        {
+          model: User,
+          attributes: ["id", "name", "email", "phone"],
+        },
+        {
+          model: OrderItem,
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "price"],
+              include: [
+                {
+                  model: ProductImage,
+                  attributes: ["id", "imageUrl", "isPrimary"],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          model: Payment,
+          attributes: ["id", "payment_gateway", "status", "amount"],
+        },
+        {
+          model: Address,
+          attributes: [
+            "id",
+            "recipient_name",
+            "phone",
+            "province",
+            "city",
+            "district",
+            "postal_code",
+            "details",
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.json({
+      message: "Admin order list retrieved",
+      count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("getAllOrdersByAdmin Error:", error.message);
+    return res.status(500).json({
+      message: "Failed to retrieve admin order list",
+      error: error.message,
+    });
+  }
+};
+
+exports.getOrderByIdAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findOne({
+      where: { id },
+      include: [
+        {
+          model: User,
+          attributes: ["id", "name", "email", "phone"],
+        },
+        {
+          model: OrderItem,
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "price"],
+              include: [
+                {
+                  model: ProductImage,
+                  attributes: ["id", "imageUrl", "isPrimary"],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          model: Payment,
+          attributes: ["id", "payment_gateway", "status", "amount"],
+        },
+        {
+          model: Address,
+          attributes: [
+            "id",
+            "recipient_name",
+            "phone",
+            "province",
+            "city",
+            "district",
+            "postal_code",
+            "details",
+          ],
+        },
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    return res.json({
+      message: "Order detail (admin) retrieved",
+      order,
+    });
+  } catch (error) {
+    console.error("getOrderByIdAdmin Error:", error.message);
+    return res.status(500).json({
+      message: "Failed to retrieve order detail",
       error: error.message,
     });
   }

@@ -12,11 +12,13 @@ const orderRoutes = require("./routes/order");
 const webhookRoutes = require("./routes/webhook");
 const imageRoutes = require("./routes/image");
 const jntAddressRoutes = require("./routes/jntAddress");
+const referenceRoutes = require("./routes/reference");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -26,5 +28,6 @@ app.use("/api/order", orderRoutes);
 app.use("/api/doku", webhookRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api/jnt-address", jntAddressRoutes);
+app.use("/api/reference", referenceRoutes);
 
 module.exports = app;

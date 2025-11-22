@@ -37,6 +37,13 @@ const getShippingCost = async ({ weight, sendSiteCode, destAreaCode }) => {
 
     const result = response.data;
 
+    console.log("=== JNT Shipping Cost Request ===");
+    console.log("API URL:", apiUrl);
+    console.log("Request Data:", dataJson);
+    console.log("Request Body:", body);
+
+    console.log("=== JNT Shipping Cost Response ===");
+    console.log(result);
     if (result.is_success === "true") {
       const content = JSON.parse(result.content);
       const cost = parseInt(content[0].cost);
@@ -126,6 +133,15 @@ const createJntOrder = async (order, address, orderItems) => {
     const response = await axios.post(apiUrl, body, { headers });
     const result = response.data;
 
+    // Log the request
+    console.log("=== JNT Order Creation Request ===");
+    console.log("API URL:", apiUrl);
+    console.log("Request Data:", data_json);
+    console.log("Request Body:", body);
+
+    // Log the response
+    console.log("=== JNT Order Creation Response ===");
+    console.log(result);
     if (result.success && result.detail && result.detail[0].awb_no) {
       console.log("J&T Order Success:", result.detail[0]);
       return {
@@ -166,6 +182,13 @@ const trackJntShipment = async (awb) => {
         Authorization: `Basic ${auth}`,
       },
     });
+
+    console.log("=== JNT Tracking Request ===");
+    console.log("API URL:", url);
+    console.log("Request Body:", JSON.stringify(requestBody));
+
+    console.log("=== JNT Tracking Response ===");
+    console.log(response.data);
 
     return response.data;
   } catch (error) {

@@ -6,10 +6,26 @@ const {
   getOrderById,
   getOrders,
   trackOrder,
+  getAllOrdersByAdmin,
+  getOrderByIdAdmin,
 } = require("../controllers/orderController");
-const { authenticate } = require("../middlewares/auth");
+const { uploadProduct } = require("../middlewares/upload");
+const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 
-router.post("/", authenticate, createOrder);
+router.get("/admin/orders", authenticate, authorizeAdmin, getAllOrdersByAdmin);
+router.get(
+  "/admin/orders/:id",
+  authenticate,
+  authorizeAdmin,
+  getOrderByIdAdmin
+);
+
+router.post(
+  "/",
+  authenticate,
+  uploadProduct.array("custom_images", 12),
+  createOrder
+);
 router.get("/", authenticate, getOrders);
 router.get("/:id", authenticate, getOrderById);
 router.post("/summary", authenticate, getOrderSummary);

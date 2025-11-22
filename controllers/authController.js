@@ -127,7 +127,7 @@ module.exports = {
       await user.save();
 
       // Link reset password
-      const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+      const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password/${resetToken}`;
 
       const message = `
       <h2>Reset Password</h2>

@@ -11,6 +11,9 @@ module.exports = (sequelize, DataTypes) => {
       CartItem.belongsTo(models.Cart, { foreignKey: "cartId" });
       CartItem.belongsTo(models.Product, { foreignKey: "productId" });
       CartItem.belongsTo(models.CustomImage, { foreignKey: "customImageId" });
+      CartItem.belongsTo(models.PhoneType, { foreignKey: "phoneTypeId" });
+      CartItem.belongsTo(models.Material, { foreignKey: "materialId" });
+      CartItem.belongsTo(models.Variant, { foreignKey: "variantId" });
     }
   }
   CartItem.init(
@@ -20,6 +23,9 @@ module.exports = (sequelize, DataTypes) => {
       customImageId: DataTypes.INTEGER,
       quantity: DataTypes.INTEGER,
       price: DataTypes.DECIMAL,
+      phoneTypeId: DataTypes.INTEGER,
+      materialId: DataTypes.INTEGER,
+      variantId: DataTypes.INTEGER,
     },
     {
       sequelize,

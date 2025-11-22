@@ -22,6 +22,12 @@ router.put("/addresses/:id", authenticate, userController.updateAddress);
 router.delete("/addresses/:id", authenticate, userController.deleteAddress);
 
 // Admin Panel
+router.post(
+  "/create",
+  authenticate,
+  authorizeAdmin,
+  userController.createUserByAdmin
+);
 router.get("/", authenticate, authorizeAdmin, userController.getAllUsers);
 router.get("/:id", authenticate, authorizeAdmin, userController.getUserById);
 router.put(
