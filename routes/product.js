@@ -3,14 +3,14 @@ const router = express.Router();
 const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 const productController = require("../controllers/productController");
 const adminProductController = require("../controllers/adminProductController");
-const { uploadProduct } = require("../middlewares/upload");
+const { uploadProduct, uploadCustoms } = require("../middlewares/upload");
 
 router.get("/", productController.getProducts);
 router.get("/:id", productController.getProductById);
 router.post(
   "/custom/upload",
   authenticate,
-  uploadProduct.array("images", 12),
+  uploadCustoms.array("images", 12),
   productController.uploadCustomImage
 );
 

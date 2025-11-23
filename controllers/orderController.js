@@ -10,6 +10,9 @@ const {
   User,
   ProductImage,
   JntAddressMapping,
+  PhoneType,
+  Material,
+  Variant,
 } = require("../models");
 const { getShippingCost, trackJntShipment } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
@@ -62,7 +65,7 @@ exports.getOrderSummary = async (req, res) => {
       error: shippingError,
     } = await getShippingCost({
       weight: totalWeight,
-      sendSiteCode: "CIBINONG",
+      sendSiteCode: "JAKARTA",
       destAreaCode: jnt.jnt_district,
     });
 
@@ -312,6 +315,22 @@ exports.getOrders = async (req, res) => {
                 },
               ],
             },
+            {
+              model: CustomImage,
+              attributes: ["id", "image_url", "processed_url"],
+            },
+            {
+              model: PhoneType,
+              attributes: ["id", "brand", "model"],
+            },
+            {
+              model: Material,
+              attributes: ["id", "name"],
+            },
+            {
+              model: Variant,
+              attributes: ["id", "name"],
+            },
           ],
         },
         {
@@ -367,6 +386,23 @@ exports.getOrderById = async (req, res) => {
                   attributes: ["id", "imageUrl", "isPrimary"],
                 },
               ],
+            },
+            ,
+            {
+              model: CustomImage,
+              attributes: ["id", "image_url", "processed_url"],
+            },
+            {
+              model: PhoneType,
+              attributes: ["id", "brand", "model"],
+            },
+            {
+              model: Material,
+              attributes: ["id", "name"],
+            },
+            {
+              model: Variant,
+              attributes: ["id", "name"],
             },
           ],
         },
@@ -465,6 +501,22 @@ exports.getAllOrdersByAdmin = async (req, res) => {
                 },
               ],
             },
+            {
+              model: CustomImage,
+              attributes: ["id", "image_url", "processed_url"],
+            },
+            {
+              model: PhoneType,
+              attributes: ["id", "brand", "model"],
+            },
+            {
+              model: Material,
+              attributes: ["id", "name"],
+            },
+            {
+              model: Variant,
+              attributes: ["id", "name"],
+            },
           ],
         },
         {
@@ -525,6 +577,22 @@ exports.getOrderByIdAdmin = async (req, res) => {
                   attributes: ["id", "imageUrl", "isPrimary"],
                 },
               ],
+            },
+            {
+              model: CustomImage,
+              attributes: ["id", "image_url", "processed_url"],
+            },
+            {
+              model: PhoneType,
+              attributes: ["id", "brand", "model"],
+            },
+            {
+              model: Material,
+              attributes: ["id", "name"],
+            },
+            {
+              model: Variant,
+              attributes: ["id", "name"],
             },
           ],
         },

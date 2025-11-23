@@ -41,5 +41,15 @@ const uploadProduct = multer({
   storage: createStorage("product"),
   fileFilter,
 });
+const uploadCustoms = multer({
+  storage: createStorage("custom"),
+  fileFilter,
+});
 
-module.exports = { uploadProfile, uploadProduct, createStorage, fileFilter };
+module.exports = {
+  uploadProfile,
+  uploadProduct,
+  uploadCustoms,
+  createStorage,
+  fileFilter,
+};

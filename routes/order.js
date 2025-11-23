@@ -9,21 +9,16 @@ const {
   getAllOrdersByAdmin,
   getOrderByIdAdmin,
 } = require("../controllers/orderController");
-const { uploadProduct } = require("../middlewares/upload");
+const { uploadCustoms } = require("../middlewares/upload");
 const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 
-router.get("/admin/orders", authenticate, authorizeAdmin, getAllOrdersByAdmin);
-router.get(
-  "/admin/orders/:id",
-  authenticate,
-  authorizeAdmin,
-  getOrderByIdAdmin
-);
+router.get("/admin/", authenticate, authorizeAdmin, getAllOrdersByAdmin);
+router.get("/admin/:id", authenticate, authorizeAdmin, getOrderByIdAdmin);
 
 router.post(
   "/",
   authenticate,
-  uploadProduct.array("custom_images", 12),
+  uploadCustoms.array("custom_images", 12),
   createOrder
 );
 router.get("/", authenticate, getOrders);
