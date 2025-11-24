@@ -8,11 +8,17 @@ const {
   PhoneType,
   ProductImage,
 } = require("../models");
+const redis = require("../config/redis");
 
 module.exports = {
   getCart: async (req, res) => {
     try {
       const userId = req.user.id;
+
+      const cached = await redis.get(`cart:${userId}`);
+      if (cached) {
+        return res.json(JSON.parse(cached));
+      }
 
       const cart = await Cart.findOne({
         where: { userId },
@@ -39,6 +45,8 @@ module.exports = {
       });
 
       if (!cart) return res.status(404).json({ message: "Cart not found" });
+
+      await redis.setex(`cart:${userId}`, 120, JSON.stringify(cart));
 
       return res.json(cart);
     } catch (err) {
@@ -91,6 +99,8 @@ module.exports = {
         existingItem.price = existingItem.Product.price * existingItem.quantity;
         await existingItem.save();
 
+        await redis.del(`cart:${userId}`);
+
         return res.json({ message: "Cart updated", item: existingItem });
       }
 
@@ -105,6 +115,7 @@ module.exports = {
         price: product.price * quantity,
       });
 
+      await redis.del(`cart:${userId}`);
       return res.status(201).json({ message: "Item added", item: newItem });
     } catch (err) {
       console.error(err);
@@ -124,6 +135,7 @@ module.exports = {
       item.price = item.Product.price * quantity;
       await item.save();
 
+      await redis.del(`cart:${item.cartId}`);
       return res.json({ message: "Cart item updated", item });
     } catch (err) {
       console.error(err);
@@ -139,6 +151,7 @@ module.exports = {
       if (!item) return res.status(404).json({ message: "Item not found" });
 
       await item.destroy();
+      await redis.del(`cart:${item.cartId}`);
       return res.json({ message: "Item removed from cart" });
     } catch (err) {
       console.error(err);

@@ -1,17 +1,32 @@
 const { JntAddressMapping } = require("../models");
+const redis = require("../config/redis");
 
 module.exports = {
   getProvinces: async (req, res) => {
     try {
+      const cacheKey = "jnt:provinces";
+      const cached = await redis.get(cacheKey);
+
+      if (cached) {
+        return res.json({
+          message: "Provinces fetched (cache)",
+          data: JSON.parse(cached),
+        });
+      }
+
       const provinces = await JntAddressMapping.findAll({
         attributes: ["province"],
         group: ["province"],
         order: [["province", "ASC"]],
       });
 
+      const list = provinces.map((p) => p.province);
+
+      await redis.setex(cacheKey, 3600, JSON.stringify(list));
+
       return res.json({
         message: "Provinces fetched successfully",
-        data: provinces.map((p) => p.province),
+        data: list,
       });
     } catch (err) {
       console.error("Error fetching provinces:", err);
@@ -22,8 +37,17 @@ module.exports = {
   getCities: async (req, res) => {
     try {
       const { province } = req.query;
-      if (!province) {
+      if (!province)
         return res.status(400).json({ message: "Province is required" });
+
+      const cacheKey = `jnt:cities:${province}`;
+      const cached = await redis.get(cacheKey);
+
+      if (cached) {
+        return res.json({
+          message: "Cities fetched (cache)",
+          data: JSON.parse(cached),
+        });
       }
 
       const cities = await JntAddressMapping.findAll({
@@ -33,9 +57,13 @@ module.exports = {
         order: [["city", "ASC"]],
       });
 
+      const list = cities.map((c) => c.city);
+
+      await redis.setex(cacheKey, 3600, JSON.stringify(list));
+
       return res.json({
         message: "Cities fetched successfully",
-        data: cities.map((c) => c.city),
+        data: list,
       });
     } catch (err) {
       console.error("Error fetching cities:", err);
@@ -46,8 +74,16 @@ module.exports = {
   getDistricts: async (req, res) => {
     try {
       const { city } = req.query;
-      if (!city) {
-        return res.status(400).json({ message: "City is required" });
+      if (!city) return res.status(400).json({ message: "City is required" });
+
+      const cacheKey = `jnt:districts:${city}`;
+      const cached = await redis.get(cacheKey);
+
+      if (cached) {
+        return res.json({
+          message: "Districts fetched (cache)",
+          data: JSON.parse(cached),
+        });
       }
 
       const districts = await JntAddressMapping.findAll({
@@ -57,9 +93,13 @@ module.exports = {
         order: [["district", "ASC"]],
       });
 
+      const list = districts.map((d) => d.district);
+
+      await redis.setex(cacheKey, 3600, JSON.stringify(list));
+
       return res.json({
         message: "Districts fetched successfully",
-        data: districts.map((d) => d.district),
+        data: list,
       });
     } catch (err) {
       console.error("Error fetching districts:", err);
@@ -77,14 +117,27 @@ module.exports = {
         });
       }
 
+      const cacheKey = `jnt:mapping:${province}:${city}:${district}`;
+      const cached = await redis.get(cacheKey);
+
+      if (cached) {
+        return res.json({
+          message: "Mapping detail fetched (cache)",
+          data: JSON.parse(cached),
+        });
+      }
+
       const mapping = await JntAddressMapping.findOne({
         where: { province, city, district },
       });
 
-      if (!mapping)
-        return res
-          .status(404)
-          .json({ message: "Mapping not found for given address" });
+      if (!mapping) {
+        return res.status(404).json({
+          message: "Mapping not found for given address",
+        });
+      }
+
+      await redis.setex(cacheKey, 3600, JSON.stringify(mapping));
 
       return res.json({
         message: "Mapping detail fetched successfully",

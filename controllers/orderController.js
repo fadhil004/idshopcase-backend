@@ -14,8 +14,10 @@ const {
   Material,
   Variant,
 } = require("../models");
-const { getShippingCost, trackJntShipment } = require("../services/jntService");
+const getShippingCost = require("../services/getShippingCostCached");
+const { trackJntShipment } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
+const redis = require("../config/redis");
 const crypto = require("crypto");
 
 exports.getOrderSummary = async (req, res) => {
@@ -111,6 +113,18 @@ exports.createOrder = async (req, res) => {
 
     const buyNow = buyNowRaw ? JSON.parse(buyNowRaw) : null;
 
+    let selectedIds = null;
+
+    if (selectedItemIds) {
+      try {
+        selectedIds = JSON.parse(selectedItemIds);
+      } catch (err) {
+        return res
+          .status(400)
+          .json({ message: "Invalid selectedItemIds format" });
+      }
+    }
+
     const user = await User.findByPk(userId);
     if (!user) {
       await t.rollback();
@@ -133,20 +147,25 @@ exports.createOrder = async (req, res) => {
         .json({ message: "J&T mapping not found for this address" });
     }
 
-    let items = [];
-    let subtotal = 0;
-    let totalWeight = 0;
+    const metadata = req.body.filesMetadata
+      ? JSON.parse(req.body.filesMetadata)
+      : [];
+    const imageMap = {}; // cartItemId -> fileIndex
+
+    metadata.forEach((m) => {
+      imageMap[m.cartItemId] = m.index;
+    });
 
     const customImageRecords = [];
 
     if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
+      for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
         const imagePath = `/uploads/customs/${file.filename}`;
 
         const image = await CustomImage.create(
           {
             userId,
-            productId: buyNow?.productId || null, // bisa null bila cart
             image_url: imagePath,
             processed_url: null,
           },
@@ -157,7 +176,11 @@ exports.createOrder = async (req, res) => {
       }
     }
 
-    if (buyNow && buyNow.productId && buyNow.quantity) {
+    let items = [];
+    let subtotal = 0;
+    let totalWeight = 0;
+
+    if (buyNow) {
       const product = await Product.findByPk(buyNow.productId);
 
       if (!product) {
@@ -172,19 +195,19 @@ exports.createOrder = async (req, res) => {
         phoneTypeId: buyNow.phoneTypeId || null,
         materialId: buyNow.materialId || null,
         variantId: buyNow.variantId || null,
-        customImageId: customImageRecords[0]?.id || null, // <<<<<<<<<<<< AUTO
+        customImageId: customImageRecords[0]?.id || null,
       });
 
       subtotal = parseFloat(product.price) * buyNow.quantity;
       totalWeight = 0.1 * buyNow.quantity;
-    } else if (selectedItemIds) {
+    } else if (selectedIds) {
       const cart = await Cart.findOne({
         where: { userId },
         include: [
           {
             model: CartItem,
             include: [Product],
-            where: { id: selectedItemIds },
+            where: { id: selectedIds },
           },
         ],
       });
@@ -194,16 +217,23 @@ exports.createOrder = async (req, res) => {
         return res.status(400).json({ message: "No cart items found" });
       }
 
-      items = cart.CartItems.map((item, i) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-        phoneTypeId: item.phoneTypeId || null,
-        materialId: item.materialId || null,
-        variantId: item.variantId || null,
-        customImageId: customImageRecords[i]?.id || item.customImageId || null,
-        cartItemInstance: item,
-      }));
+      items = cart.CartItems.map((item) => {
+        const fileIndex = imageMap[item.id];
+
+        return {
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+          phoneTypeId: item.phoneTypeId || null,
+          materialId: item.materialId || null,
+          variantId: item.variantId || null,
+          customImageId:
+            fileIndex !== undefined
+              ? customImageRecords[fileIndex].id
+              : item.customImageId || null,
+          cartItemInstance: item,
+        };
+      });
 
       subtotal = cart.CartItems.reduce(
         (acc, item) => acc + parseFloat(item.price),
@@ -214,11 +244,6 @@ exports.createOrder = async (req, res) => {
         (acc, item) => acc + 0.1 * item.quantity,
         0
       );
-    } else {
-      await t.rollback();
-      return res
-        .status(400)
-        .json({ message: "Please select items or use Buy Now" });
     }
 
     const { cost: shippingCost, error: shippingError } = await getShippingCost({
@@ -298,6 +323,15 @@ exports.createOrder = async (req, res) => {
 exports.getOrders = async (req, res) => {
   try {
     const userId = req.user.id;
+    const cacheKey = `orders:user:${userId}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.json({
+        message: "Orders retrieved (cache)",
+        orders: JSON.parse(cached),
+      });
+    }
 
     const orders = await Order.findAll({
       where: { userId },
@@ -315,54 +349,31 @@ exports.getOrders = async (req, res) => {
                 },
               ],
             },
-            {
-              model: CustomImage,
-              attributes: ["id", "image_url", "processed_url"],
-            },
-            {
-              model: PhoneType,
-              attributes: ["id", "brand", "model"],
-            },
-            {
-              model: Material,
-              attributes: ["id", "name"],
-            },
-            {
-              model: Variant,
-              attributes: ["id", "name"],
-            },
+            { model: CustomImage },
+            { model: PhoneType },
+            { model: Material },
+            { model: Variant },
           ],
         },
-        {
-          model: Payment,
-          attributes: ["id", "payment_gateway", "status", "amount"],
-        },
-        {
-          model: Address,
-          attributes: [
-            "id",
-            "recipient_name",
-            "phone",
-            "province",
-            "city",
-            "district",
-            "postal_code",
-            "details",
-          ],
-        },
+        { model: Payment },
+        { model: Address },
       ],
       order: [["createdAt", "DESC"]],
     });
 
-    if (!orders || orders.length === 0)
+    if (!orders.length) {
       return res.status(404).json({ message: "No orders found" });
+    }
 
-    return res.json({ message: "Orders retrieved", orders });
+    await redis.setex(cacheKey, 20, JSON.stringify(orders));
+
+    return res.json({
+      message: "Orders retrieved",
+      orders,
+    });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ message: "Failed to retrieve orders", error: error.message });
+    return res.status(500).json({ message: "Failed to retrieve orders" });
   }
 };
 
@@ -370,6 +381,16 @@ exports.getOrderById = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
+
+    const cacheKey = `order:user:${userId}:${id}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      return res.json({
+        message: "Order detail retrieved (cache)",
+        order: JSON.parse(cached),
+      });
+    }
 
     const order = await Order.findOne({
       where: { id, userId },
@@ -380,60 +401,27 @@ exports.getOrderById = async (req, res) => {
             {
               model: Product,
               attributes: ["id", "name", "price"],
-              include: [
-                {
-                  model: ProductImage,
-                  attributes: ["id", "imageUrl", "isPrimary"],
-                },
-              ],
+              include: [{ model: ProductImage }],
             },
-            ,
-            {
-              model: CustomImage,
-              attributes: ["id", "image_url", "processed_url"],
-            },
-            {
-              model: PhoneType,
-              attributes: ["id", "brand", "model"],
-            },
-            {
-              model: Material,
-              attributes: ["id", "name"],
-            },
-            {
-              model: Variant,
-              attributes: ["id", "name"],
-            },
+            { model: CustomImage },
+            { model: PhoneType },
+            { model: Material },
+            { model: Variant },
           ],
         },
-        {
-          model: Payment,
-          attributes: ["id", "payment_gateway", "status", "amount"],
-        },
-        {
-          model: Address,
-          attributes: [
-            "id",
-            "recipient_name",
-            "phone",
-            "province",
-            "city",
-            "district",
-            "postal_code",
-            "details",
-          ],
-        },
+        { model: Payment },
+        { model: Address },
       ],
     });
 
     if (!order) return res.status(404).json({ message: "Order not found" });
 
+    await redis.setex(cacheKey, 20, JSON.stringify(order));
+
     return res.json({ message: "Order detail retrieved", order });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ message: "Failed to get order detail", error: error.message });
+    return res.status(500).json({ message: "Failed to get order detail" });
   }
 };
 
@@ -477,6 +465,16 @@ exports.trackOrder = async (req, res) => {
 exports.getAllOrdersByAdmin = async (req, res) => {
   try {
     const { status } = req.query;
+    const cacheKey = `admin:orders:${status || "all"}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.json({
+        message: "Admin order list retrieved (cache)",
+        orders: JSON.parse(cached),
+        count: JSON.parse(cached).length,
+      });
+    }
 
     const whereCondition = {};
     if (status) whereCondition.status = status;
@@ -484,61 +482,24 @@ exports.getAllOrdersByAdmin = async (req, res) => {
     const orders = await Order.findAll({
       where: whereCondition,
       include: [
-        {
-          model: User,
-          attributes: ["id", "name", "email", "phone"],
-        },
+        { model: User },
         {
           model: OrderItem,
           include: [
-            {
-              model: Product,
-              attributes: ["id", "name", "price"],
-              include: [
-                {
-                  model: ProductImage,
-                  attributes: ["id", "imageUrl", "isPrimary"],
-                },
-              ],
-            },
-            {
-              model: CustomImage,
-              attributes: ["id", "image_url", "processed_url"],
-            },
-            {
-              model: PhoneType,
-              attributes: ["id", "brand", "model"],
-            },
-            {
-              model: Material,
-              attributes: ["id", "name"],
-            },
-            {
-              model: Variant,
-              attributes: ["id", "name"],
-            },
+            { model: Product, include: [ProductImage] },
+            CustomImage,
+            PhoneType,
+            Material,
+            Variant,
           ],
         },
-        {
-          model: Payment,
-          attributes: ["id", "payment_gateway", "status", "amount"],
-        },
-        {
-          model: Address,
-          attributes: [
-            "id",
-            "recipient_name",
-            "phone",
-            "province",
-            "city",
-            "district",
-            "postal_code",
-            "details",
-          ],
-        },
+        Payment,
+        Address,
       ],
       order: [["createdAt", "DESC"]],
     });
+
+    await redis.setex(cacheKey, 10, JSON.stringify(orders));
 
     return res.json({
       message: "Admin order list retrieved",
@@ -546,7 +507,6 @@ exports.getAllOrdersByAdmin = async (req, res) => {
       orders,
     });
   } catch (error) {
-    console.error("getAllOrdersByAdmin Error:", error.message);
     return res.status(500).json({
       message: "Failed to retrieve admin order list",
       error: error.message,
@@ -557,62 +517,32 @@ exports.getAllOrdersByAdmin = async (req, res) => {
 exports.getOrderByIdAdmin = async (req, res) => {
   try {
     const { id } = req.params;
+    const cacheKey = `admin:order:${id}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.json({
+        message: "Order detail (admin) retrieved (cache)",
+        order: JSON.parse(cached),
+      });
+    }
 
     const order = await Order.findOne({
       where: { id },
       include: [
-        {
-          model: User,
-          attributes: ["id", "name", "email", "phone"],
-        },
+        User,
         {
           model: OrderItem,
           include: [
-            {
-              model: Product,
-              attributes: ["id", "name", "price"],
-              include: [
-                {
-                  model: ProductImage,
-                  attributes: ["id", "imageUrl", "isPrimary"],
-                },
-              ],
-            },
-            {
-              model: CustomImage,
-              attributes: ["id", "image_url", "processed_url"],
-            },
-            {
-              model: PhoneType,
-              attributes: ["id", "brand", "model"],
-            },
-            {
-              model: Material,
-              attributes: ["id", "name"],
-            },
-            {
-              model: Variant,
-              attributes: ["id", "name"],
-            },
+            { model: Product, include: [ProductImage] },
+            CustomImage,
+            PhoneType,
+            Material,
+            Variant,
           ],
         },
-        {
-          model: Payment,
-          attributes: ["id", "payment_gateway", "status", "amount"],
-        },
-        {
-          model: Address,
-          attributes: [
-            "id",
-            "recipient_name",
-            "phone",
-            "province",
-            "city",
-            "district",
-            "postal_code",
-            "details",
-          ],
-        },
+        Payment,
+        Address,
       ],
     });
 
@@ -620,12 +550,13 @@ exports.getOrderByIdAdmin = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
+    await redis.setex(cacheKey, 20, JSON.stringify(order));
+
     return res.json({
       message: "Order detail (admin) retrieved",
       order,
     });
   } catch (error) {
-    console.error("getOrderByIdAdmin Error:", error.message);
     return res.status(500).json({
       message: "Failed to retrieve order detail",
       error: error.message,

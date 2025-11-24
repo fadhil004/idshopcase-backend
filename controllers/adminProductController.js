@@ -8,22 +8,30 @@ const {
 } = require("../models");
 const path = require("path");
 const fs = require("fs");
+const redis = require("../config/redis");
 
 module.exports = {
   downloadCustomImage: async (req, res) => {
     try {
       const { id } = req.params;
-      const customImage = await CustomImage.findByPk(id);
+      const cached = await redis.get(`customImage:${id}`);
 
-      if (!customImage) {
-        return res.status(404).json({ message: "Custom image not found" });
+      let customImage;
+      if (cached) {
+        customImage = JSON.parse(cached);
+      } else {
+        customImage = await CustomImage.findByPk(id);
+        if (!customImage) {
+          return res.status(404).json({ message: "Custom image not found" });
+        }
+        await redis.setex(
+          `customImage:${id}`,
+          600,
+          JSON.stringify(customImage)
+        );
       }
 
       const filePath = path.join(__dirname, "..", customImage.image_url);
-
-      console.log("Image path from DB:", customImage.image_url);
-      console.log("Resolved file path:", filePath);
-      console.log("File exists:", fs.existsSync(filePath));
 
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: "File not found" });
@@ -81,6 +89,8 @@ module.exports = {
         include: [ProductImage, Material, Variant, PhoneType],
       });
 
+      await redis.del("products:all");
+
       return res.status(201).json({
         message: "Product created successfully",
         product: newProduct,
@@ -124,7 +134,7 @@ module.exports = {
         const productImages = req.files.map((file, index) => ({
           productId: product.id,
           imageUrl: `/uploads/products/${file.filename}`,
-          isPrimary: index === 0, // Gambar pertama dijadikan utama
+          isPrimary: index === 0,
         }));
 
         await ProductImage.bulkCreate(productImages);
@@ -133,6 +143,9 @@ module.exports = {
       const updatedProduct = await Product.findByPk(product.id, {
         include: [ProductImage, Material, Variant, PhoneType],
       });
+
+      await redis.del("products:all");
+      await redis.del(`product:${id}`);
 
       return res.json({
         message: "Product updated",
@@ -150,11 +163,13 @@ module.exports = {
       const image = await ProductImage.findByPk(imageId);
       if (!image) return res.status(404).json({ message: "Image not found" });
 
-      // Hapus file fisik
       const filePath = path.join(__dirname, "..", image.imageUrl);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
       await image.destroy();
+
+      await redis.del("products:all");
+      await redis.del(`product:${image.productId}`);
 
       res.json({ message: "Image deleted successfully" });
     } catch (err) {
@@ -185,6 +200,9 @@ module.exports = {
       await product.setVariants([]);
 
       await product.destroy();
+
+      await redis.del("products:all");
+      await redis.del(`product:${id}`);
 
       return res.json({ message: "Product deleted successfully" });
     } catch (err) {

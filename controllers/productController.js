@@ -8,10 +8,21 @@ const {
 } = require("../models");
 const path = require("path");
 const fs = require("fs");
+const redis = require("../config/redis");
 
 module.exports = {
   getProducts: async (req, res) => {
     try {
+      const cacheKey = "products:list";
+
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json({
+          message: "Products retrieved (cache)",
+          data: JSON.parse(cached),
+        });
+      }
+
       const products = await Product.findAll({
         include: [
           { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
@@ -20,7 +31,13 @@ module.exports = {
           { model: PhoneType, attributes: ["id", "brand", "model"] },
         ],
       });
-      return res.json(products);
+
+      await redis.setex(cacheKey, 30, JSON.stringify(products));
+
+      return res.json({
+        message: "Products retrieved",
+        data: products,
+      });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -28,7 +45,18 @@ module.exports = {
 
   getProductById: async (req, res) => {
     try {
-      const product = await Product.findByPk(req.params.id, {
+      const id = req.params.id;
+      const cacheKey = `product:id:${id}`;
+
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json({
+          message: "Product retrieved (cache)",
+          data: JSON.parse(cached),
+        });
+      }
+
+      const product = await Product.findByPk(id, {
         include: [
           { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
           { model: Material, attributes: ["id", "name"] },
@@ -36,9 +64,16 @@ module.exports = {
           { model: PhoneType, attributes: ["id", "brand", "model"] },
         ],
       });
+
       if (!product)
         return res.status(404).json({ message: "Product not found" });
-      return res.json(product);
+
+      await redis.setex(cacheKey, 30, JSON.stringify(product));
+
+      return res.json({
+        message: "Product retrieved",
+        data: product,
+      });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

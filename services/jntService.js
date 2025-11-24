@@ -1,5 +1,7 @@
+const { Order } = require("../models");
 const axios = require("axios");
 const crypto = require("crypto");
+const redis = require("../config/redis");
 
 const getShippingCost = async ({ weight, sendSiteCode, destAreaCode }) => {
   try {
@@ -169,6 +171,18 @@ const trackJntShipment = async (awb) => {
     const username = process.env.JNT_USERNAME;
     const password = process.env.JNT_PW_TRACK;
 
+    const cacheKey = `track:${awb}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log("Using cached tracking result");
+      const parsed = JSON.parse(cached);
+
+      await checkAndUpdateDelivered(parsed, awb);
+
+      return parsed;
+    }
+
     const auth = Buffer.from(`${username}:${password}`).toString("base64");
 
     const requestBody = {
@@ -183,14 +197,16 @@ const trackJntShipment = async (awb) => {
       },
     });
 
-    console.log("=== JNT Tracking Request ===");
-    console.log("API URL:", url);
-    console.log("Request Body:", JSON.stringify(requestBody));
-
-    console.log("=== JNT Tracking Response ===");
+    console.log("=== JNT TRACK RESPONSE ===");
     console.log(response.data);
 
-    return response.data;
+    const result = response.data;
+
+    await redis.setex(cacheKey, 600, JSON.stringify(result));
+
+    await checkAndUpdateDelivered(result, awb);
+
+    return result;
   } catch (error) {
     console.error("JNT Tracking Error:", error.response?.data || error.message);
     return {
@@ -199,6 +215,30 @@ const trackJntShipment = async (awb) => {
         error.response?.data?.error_message ||
         "Failed to track shipment. Please try again later.",
     };
+  }
+};
+
+const checkAndUpdateDelivered = async (trackingData, awb) => {
+  try {
+    if (!trackingData || !Array.isArray(trackingData.history)) return;
+
+    const latest = trackingData.history[trackingData.history.length - 1];
+
+    if (!latest) return;
+
+    if (String(latest.status_code) === "200") {
+      console.log(`AWB ${awb} sudah delivered`);
+
+      const order = await Order.findOne({ where: { tracking_number: awb } });
+
+      if (order && order.status !== "delivered") {
+        order.status = "delivered";
+        await order.save();
+        console.log(`Order ${order.id} updated to DELIVERED`);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to update delivered status:", err.message);
   }
 };
 
