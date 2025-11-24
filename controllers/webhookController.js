@@ -5,6 +5,7 @@ const {
   Product,
   Address,
   JntAddressMapping,
+  sequelize,
 } = require("../models");
 const { createJntOrder } = require("../services/jntService");
 

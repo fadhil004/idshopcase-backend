@@ -118,10 +118,19 @@ exports.createOrder = async (req, res) => {
     if (selectedItemIds) {
       try {
         selectedIds = JSON.parse(selectedItemIds);
-      } catch (err) {
+      } catch {
         return res
           .status(400)
           .json({ message: "Invalid selectedItemIds format" });
+      }
+    }
+
+    let customMap = {};
+    if (req.body.customMap) {
+      try {
+        customMap = JSON.parse(req.body.customMap);
+      } catch {
+        return res.status(400).json({ message: "Invalid customMap JSON" });
       }
     }
 
@@ -147,26 +156,13 @@ exports.createOrder = async (req, res) => {
         .json({ message: "J&T mapping not found for this address" });
     }
 
-    const metadata = req.body.filesMetadata
-      ? JSON.parse(req.body.filesMetadata)
-      : [];
-    const imageMap = {}; // cartItemId -> fileIndex
-
-    metadata.forEach((m) => {
-      imageMap[m.cartItemId] = m.index;
-    });
-
     const customImageRecords = [];
-
     if (req.files && req.files.length > 0) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
-        const imagePath = `/uploads/customs/${file.filename}`;
-
+      for (const file of req.files) {
         const image = await CustomImage.create(
           {
             userId,
-            image_url: imagePath,
+            image_url: `/uploads/customs/${file.filename}`,
             processed_url: null,
           },
           { transaction: t }
@@ -187,6 +183,10 @@ exports.createOrder = async (req, res) => {
         await t.rollback();
         return res.status(404).json({ message: "Product not found" });
       }
+      const mappedFiles = customMap.buyNow || [];
+      const imagesForItem = mappedFiles
+        .map((i) => customImageRecords[i]?.id)
+        .filter(Boolean);
 
       items.push({
         productId: product.id,
@@ -195,7 +195,7 @@ exports.createOrder = async (req, res) => {
         phoneTypeId: buyNow.phoneTypeId || null,
         materialId: buyNow.materialId || null,
         variantId: buyNow.variantId || null,
-        customImageId: customImageRecords[0]?.id || null,
+        customImageIds: imagesForItem,
       });
 
       subtotal = parseFloat(product.price) * buyNow.quantity;
@@ -217,23 +217,23 @@ exports.createOrder = async (req, res) => {
         return res.status(400).json({ message: "No cart items found" });
       }
 
-      items = cart.CartItems.map((item) => {
-        const fileIndex = imageMap[item.id];
+      for (const item of cart.CartItems) {
+        const mappedFiles = customMap[item.id] || [];
+        const imagesForItem = mappedFiles
+          .map((i) => customImageRecords[i]?.id)
+          .filter(Boolean);
 
-        return {
+        items.push({
           productId: item.productId,
           quantity: item.quantity,
           price: item.price,
-          phoneTypeId: item.phoneTypeId || null,
-          materialId: item.materialId || null,
-          variantId: item.variantId || null,
-          customImageId:
-            fileIndex !== undefined
-              ? customImageRecords[fileIndex].id
-              : item.customImageId || null,
+          phoneTypeId: item.phoneTypeId,
+          materialId: item.materialId,
+          variantId: item.variantId,
+          customImageIds: imagesForItem,
           cartItemInstance: item,
-        };
-      });
+        });
+      }
 
       subtotal = cart.CartItems.reduce(
         (acc, item) => acc + parseFloat(item.price),
@@ -252,13 +252,11 @@ exports.createOrder = async (req, res) => {
       destAreaCode: address.JntMapping.jnt_district,
     });
 
-    if (shippingError) {
-      throw new Error(`Failed to get shipping cost: ${shippingError}`);
-    }
+    if (shippingError) throw new Error(shippingError);
 
     const totalPrice = subtotal + shippingCost;
-
     const requestId = crypto.randomUUID();
+
     const order = await Order.create(
       {
         userId,
@@ -281,7 +279,7 @@ exports.createOrder = async (req, res) => {
           phoneTypeId: item.phoneTypeId,
           materialId: item.materialId,
           variantId: item.variantId,
-          customImageId: item.customImageId || null,
+          customImageIds: item.customImageIds, // <= ARRAY
         },
         { transaction: t }
       );
@@ -301,22 +299,21 @@ exports.createOrder = async (req, res) => {
       { transaction: t }
     );
 
-    const dokuResponse = await createDokuCheckout(order, user, requestId);
+    const checkout = await createDokuCheckout(order, user, requestId);
 
     await t.commit();
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Order created successfully",
       order,
+      items,
+      images: customImageRecords,
       payment,
-      uploadedImages: customImageRecords,
-      checkout: dokuResponse,
+      checkout,
     });
-  } catch (error) {
+  } catch (err) {
     if (!t.finished) await t.rollback();
-    res
-      .status(500)
-      .json({ message: "Failed to create order", error: error.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 
