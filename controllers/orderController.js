@@ -195,7 +195,7 @@ exports.createOrder = async (req, res) => {
         phoneTypeId: buyNow.phoneTypeId || null,
         materialId: buyNow.materialId || null,
         variantId: buyNow.variantId || null,
-        customImageIds: imagesForItem,
+        customImageId: imagesForItem,
       });
 
       subtotal = parseFloat(product.price) * buyNow.quantity;
@@ -218,7 +218,7 @@ exports.createOrder = async (req, res) => {
       }
 
       for (const item of cart.CartItems) {
-        const mappedFiles = customMap[item.id] || [];
+        const mappedFiles = customMap[item.id]?.files || [];
         const imagesForItem = mappedFiles
           .map((i) => customImageRecords[i]?.id)
           .filter(Boolean);
@@ -230,7 +230,7 @@ exports.createOrder = async (req, res) => {
           phoneTypeId: item.phoneTypeId,
           materialId: item.materialId,
           variantId: item.variantId,
-          customImageIds: imagesForItem,
+          customImageId: imagesForItem,
           cartItemInstance: item,
         });
       }
@@ -270,7 +270,7 @@ exports.createOrder = async (req, res) => {
     );
 
     for (const item of items) {
-      await OrderItem.create(
+      const orderItem = await OrderItem.create(
         {
           orderId: order.id,
           productId: item.productId,
@@ -279,10 +279,15 @@ exports.createOrder = async (req, res) => {
           phoneTypeId: item.phoneTypeId,
           materialId: item.materialId,
           variantId: item.variantId,
-          customImageIds: item.customImageIds, // <= ARRAY
         },
         { transaction: t }
       );
+
+      if (item.customImageId && item.customImageId.length > 0) {
+        await orderItem.addCustomImage(item.customImageId, {
+          transaction: t,
+        });
+      }
 
       if (item.cartItemInstance) {
         await item.cartItemInstance.destroy({ transaction: t });
@@ -346,6 +351,10 @@ exports.getOrders = async (req, res) => {
                 },
               ],
             },
+            {
+              model: CustomImage,
+              through: { attributes: [] }, // hilangkan kolom pivot
+            },
             { model: CustomImage },
             { model: PhoneType },
             { model: Material },
@@ -400,7 +409,10 @@ exports.getOrderById = async (req, res) => {
               attributes: ["id", "name", "price"],
               include: [{ model: ProductImage }],
             },
-            { model: CustomImage },
+            {
+              model: CustomImage,
+              through: { attributes: [] }, // hilangkan kolom pivot
+            },
             { model: PhoneType },
             { model: Material },
             { model: Variant },
@@ -479,12 +491,25 @@ exports.getAllOrdersByAdmin = async (req, res) => {
     const orders = await Order.findAll({
       where: whereCondition,
       include: [
-        { model: User },
+        {
+          model: User,
+          attributes: [
+            "id",
+            "name",
+            "email",
+            "phone",
+            "profile_picture",
+            "role",
+          ],
+        },
         {
           model: OrderItem,
           include: [
             { model: Product, include: [ProductImage] },
-            CustomImage,
+            {
+              model: CustomImage,
+              through: { attributes: [] }, // hilangkan kolom pivot
+            },
             PhoneType,
             Material,
             Variant,
@@ -527,11 +552,25 @@ exports.getOrderByIdAdmin = async (req, res) => {
     const order = await Order.findOne({
       where: { id },
       include: [
-        User,
+        {
+          model: User,
+          attributes: [
+            "id",
+            "name",
+            "email",
+            "phone",
+            "profile_picture",
+            "role",
+          ],
+        },
         {
           model: OrderItem,
           include: [
             { model: Product, include: [ProductImage] },
+            {
+              model: CustomImage,
+              through: { attributes: [] }, // hilangkan kolom pivot
+            },
             CustomImage,
             PhoneType,
             Material,

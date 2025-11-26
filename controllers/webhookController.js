@@ -7,6 +7,7 @@ const {
   JntAddressMapping,
   sequelize,
 } = require("../models");
+const redis = require("../config/redis");
 const { createJntOrder } = require("../services/jntService");
 
 exports.handleDokuCallback = async (req, res) => {

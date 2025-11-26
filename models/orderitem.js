@@ -10,10 +10,14 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       OrderItem.belongsTo(models.Order, { foreignKey: "orderId" });
       OrderItem.belongsTo(models.Product, { foreignKey: "productId" });
-      OrderItem.belongsTo(models.CustomImage, { foreignKey: "customImageId" });
       OrderItem.belongsTo(models.PhoneType, { foreignKey: "phoneTypeId" });
       OrderItem.belongsTo(models.Material, { foreignKey: "materialId" });
       OrderItem.belongsTo(models.Variant, { foreignKey: "variantId" });
+      OrderItem.belongsToMany(models.CustomImage, {
+        through: models.OrderItemCustomImages,
+        foreignKey: "orderItemId",
+        otherKey: "customImageId",
+      });
     }
   }
   OrderItem.init(
