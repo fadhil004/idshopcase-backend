@@ -1,36 +1,29 @@
-name: Deploy Backend
+name: Backend Deployment
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'backend/**'
+    branches: [ "main" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Upload Backend to Server
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.SERVER_IP }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        source: "backend/*"
-        target: "/var/www/idshopcase/backend"
+      - name: Upload backend to server
+        run: |
+          rsync -avz --delete ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/var/www/idshopcase/backend/
 
-    - name: Install & Restart Backend
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SERVER_IP }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        script: |
-          cd /var/www/idshopcase/backend
-          npm install --production
-          pm2 stop idshopcase-backend || true
-          pm2 start ecosystem.config.js
-          pm2 save
+      - name: SSH commands
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /var/www/idshopcase/backend/
+            npm install
+            pm2 restart idshopcase-backend || pm2 start server.js --name idshopcase-backend
+            pm2 save
