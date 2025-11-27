@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       CustomImage.belongsTo(models.User, { foreignKey: "userId" });
       CustomImage.belongsTo(models.Product, { foreignKey: "productId" });
-      CustomImage.hasMany(models.CartItem, { foreignKey: "customImageId" });
+      // CustomImage.hasMany(models.CartItem, { foreignKey: "customImageId" });
       CustomImage.belongsToMany(models.OrderItem, {
         through: models.OrderItemCustomImages,
         foreignKey: "customImageId",

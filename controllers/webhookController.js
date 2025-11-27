@@ -2,7 +2,7 @@ const {
   Payment,
   Order,
   OrderItem,
-  Product,
+  Variant,
   Address,
   JntAddressMapping,
   sequelize,
@@ -60,17 +60,17 @@ exports.handleDokuCallback = async (req, res) => {
           transaction: t,
         });
 
-        const productIds = orderItems.map((i) => i.productId);
+        const variantIds = orderItems.map((i) => i.variantId);
 
-        const products = await Product.findAll({
-          where: { id: productIds },
+        const variants = await Variant.findAll({
+          where: { id: variantIds },
           transaction: t,
         });
 
-        for (const product of products) {
-          const item = orderItems.find((i) => i.productId === product.id);
-          product.stock = Math.max(product.stock - item.quantity, 0);
-          await product.save({ transaction: t });
+        for (const variant of variants) {
+          const item = orderItems.find((i) => i.variantId === variant.id);
+          variant.stock = Math.max(variant.stock - item.quantity, 0);
+          await variant.save({ transaction: t });
         }
 
         const address = await Address.findByPk(currentOrder.addressId, {

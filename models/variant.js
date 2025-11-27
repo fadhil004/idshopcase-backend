@@ -4,10 +4,7 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class Variant extends Model {
     static associate(models) {
-      Variant.belongsToMany(models.Product, {
-        through: "ProductVariants",
-        foreignKey: "variantId",
-      });
+      Variant.belongsTo(models.Product, { foreignKey: "productId" });
       Variant.hasMany(models.CartItem, { foreignKey: "variantId" });
       Variant.hasMany(models.OrderItem, { foreignKey: "variantId" });
     }
@@ -16,7 +13,9 @@ module.exports = (sequelize, DataTypes) => {
   Variant.init(
     {
       name: { type: DataTypes.STRING, allowNull: false },
-      description: DataTypes.TEXT,
+      price: DataTypes.DECIMAL,
+      stock: DataTypes.INTEGER,
+      max_images: DataTypes.INTEGER,
     },
     { sequelize, modelName: "Variant" }
   );

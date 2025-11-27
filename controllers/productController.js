@@ -2,13 +2,13 @@ const {
   Product,
   CustomImage,
   ProductImage,
-  Material,
   Variant,
   PhoneType,
 } = require("../models");
 const path = require("path");
 const fs = require("fs");
 const redis = require("../config/redis");
+const variant = require("../models/variant");
 
 module.exports = {
   getProducts: async (req, res) => {
@@ -26,8 +26,10 @@ module.exports = {
       const products = await Product.findAll({
         include: [
           { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
-          { model: Material, attributes: ["id", "name"] },
-          { model: Variant, attributes: ["id", "name"] },
+          {
+            model: Variant,
+            attributes: ["id", "name", "price", "stock", "max_images"],
+          },
           { model: PhoneType, attributes: ["id", "brand", "model"] },
         ],
       });
@@ -59,8 +61,10 @@ module.exports = {
       const product = await Product.findByPk(id, {
         include: [
           { model: ProductImage, attributes: ["id", "imageUrl", "isPrimary"] },
-          { model: Material, attributes: ["id", "name"] },
-          { model: Variant, attributes: ["id", "name"] },
+          {
+            model: Variant,
+            attributes: ["id", "name", "price", "stock", "max_images"],
+          },
           { model: PhoneType, attributes: ["id", "brand", "model"] },
         ],
       });
@@ -82,21 +86,19 @@ module.exports = {
   uploadCustomImage: async (req, res) => {
     try {
       const { productId } = req.body;
-      const product = await Product.findByPk(productId);
+      const userId = req.user.id;
 
-      // if (!product || product.category !== "custom_case") {
-      //   return res
-      //     .status(400)
-      //     .json({ message: "Invalid product for custom image" });
-      // }
+      const product = await Product.findByPk(productId, {
+        include: [Variant],
+      });
+
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
 
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: "No files uploaded" });
       }
-
-      // if (req.files.length > 2) {
-      //   return res.status(400).json({ message: "Maximum 2 images allowed" });
-      // }
 
       const uploadedImages = [];
       for (const file of req.files) {

@@ -24,27 +24,6 @@ router.delete(
   controller.deletePhoneType
 );
 
-// Materials
-router.get("/materials", controller.getMaterials);
-router.post(
-  "/materials",
-  authenticate,
-  authorizeAdmin,
-  controller.createMaterial
-);
-router.put(
-  "/materials/:id",
-  authenticate,
-  authorizeAdmin,
-  controller.updateMaterial
-);
-router.delete(
-  "/materials/:id",
-  authenticate,
-  authorizeAdmin,
-  controller.deleteMaterial
-);
-
 // Variants
 router.get("/variants", controller.getVariants);
 router.post(

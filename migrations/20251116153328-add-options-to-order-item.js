@@ -6,10 +6,6 @@ module.exports = {
       type: Sequelize.INTEGER,
       allowNull: true,
     });
-    await queryInterface.addColumn("OrderItems", "materialId", {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-    });
     await queryInterface.addColumn("OrderItems", "variantId", {
       type: Sequelize.INTEGER,
       allowNull: true,
@@ -18,7 +14,6 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     await queryInterface.removeColumn("OrderItems", "phoneTypeId");
-    await queryInterface.removeColumn("OrderItems", "materialId");
     await queryInterface.removeColumn("OrderItems", "variantId");
   },
 };

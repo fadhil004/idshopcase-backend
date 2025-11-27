@@ -12,6 +12,9 @@ module.exports = {
       },
       name: { type: Sequelize.STRING, allowNull: false },
       description: Sequelize.TEXT,
+      price: { type: Sequelize.DECIMAL, allowNull: false },
+      stock: { type: Sequelize.INTEGER, allowNull: false },
+      max_images: { type: Sequelize.INTEGER, allowNull: false },
       createdAt: { allowNull: false, type: Sequelize.DATE },
       updatedAt: { allowNull: false, type: Sequelize.DATE },
     });

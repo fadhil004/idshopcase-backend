@@ -11,7 +11,6 @@ const {
   ProductImage,
   JntAddressMapping,
   PhoneType,
-  Material,
   Variant,
 } = require("../models");
 const getShippingCost = require("../services/getShippingCostCached");
@@ -41,7 +40,7 @@ exports.getOrderSummary = async (req, res) => {
       include: [
         {
           model: CartItem,
-          include: [Product],
+          include: [{ model: Variant }],
           where: { id: selectedItemIds },
         },
       ],
@@ -51,7 +50,7 @@ exports.getOrderSummary = async (req, res) => {
       return res.status(400).json({ message: "No selected items found" });
 
     const subtotal = cart.CartItems.reduce(
-      (acc, item) => acc + parseFloat(item.price),
+      (acc, item) => acc + parseFloat(item.Variant.price) * item.quantity,
       0
     );
 
@@ -59,7 +58,6 @@ exports.getOrderSummary = async (req, res) => {
       (acc, item) => acc + 0.1 * item.quantity,
       0
     );
-    console.log(jnt.jnt_district);
 
     const {
       cost: shippingCost,
@@ -75,17 +73,14 @@ exports.getOrderSummary = async (req, res) => {
       throw new Error(`Failed to get shipping cost: ${shippingError}`);
     }
 
-    const totalPrice = subtotal + shippingCost;
-
     return res.json({
       message: "Order summary calculated",
       data: {
         items: cart.CartItems.map((item) => ({
           id: item.id,
-          name: item.Product.name,
           quantity: item.quantity,
-          price: parseFloat(item.price),
-          subtotal: parseFloat(item.price),
+          price: parseFloat(item.Variant.price),
+          subtotal: item.quantity * parseFloat(item.Variant.price),
         })),
         subtotal,
         shipping: {
@@ -93,12 +88,11 @@ exports.getOrderSummary = async (req, res) => {
           service: shippingService,
           cost: shippingCost,
         },
-        total: totalPrice,
+        total: subtotal + shippingCost,
       },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
+    return res.status(500).json({
       message: "Failed to get order summary",
       error: error.message,
     });
@@ -149,13 +143,6 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({ message: "Address not found" });
     }
 
-    if (!address.JntMapping) {
-      await t.rollback();
-      return res
-        .status(400)
-        .json({ message: "J&T mapping not found for this address" });
-    }
-
     const customImageRecords = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
@@ -177,28 +164,29 @@ exports.createOrder = async (req, res) => {
     let totalWeight = 0;
 
     if (buyNow) {
-      const product = await Product.findByPk(buyNow.productId);
-
-      if (!product) {
+      const variant = await Variant.findByPk(buyNow.variantId);
+      if (!variant) {
         await t.rollback();
-        return res.status(404).json({ message: "Product not found" });
+        return res.status(404).json({ message: "Variant not found" });
       }
+
       const mappedFiles = customMap.buyNow || [];
       const imagesForItem = mappedFiles
         .map((i) => customImageRecords[i]?.id)
         .filter(Boolean);
 
+      const price = parseFloat(variant.price);
+
       items.push({
-        productId: product.id,
+        productId: variant.productId,
         quantity: buyNow.quantity,
-        price: product.price,
+        price,
         phoneTypeId: buyNow.phoneTypeId || null,
-        materialId: buyNow.materialId || null,
-        variantId: buyNow.variantId || null,
+        variantId: variant.id,
         customImageId: imagesForItem,
       });
 
-      subtotal = parseFloat(product.price) * buyNow.quantity;
+      subtotal = price * buyNow.quantity;
       totalWeight = 0.1 * buyNow.quantity;
     } else if (selectedIds) {
       const cart = await Cart.findOne({
@@ -206,7 +194,7 @@ exports.createOrder = async (req, res) => {
         include: [
           {
             model: CartItem,
-            include: [Product],
+            include: [Variant],
             where: { id: selectedIds },
           },
         ],
@@ -218,32 +206,29 @@ exports.createOrder = async (req, res) => {
       }
 
       for (const item of cart.CartItems) {
+        const price = parseFloat(item.Variant.price);
+
         const mappedFiles = customMap[item.id]?.files || [];
         const imagesForItem = mappedFiles
           .map((i) => customImageRecords[i]?.id)
           .filter(Boolean);
 
         items.push({
-          productId: item.productId,
+          productId: item.Variant.productId,
           quantity: item.quantity,
-          price: item.price,
+          price,
           phoneTypeId: item.phoneTypeId,
-          materialId: item.materialId,
           variantId: item.variantId,
           customImageId: imagesForItem,
           cartItemInstance: item,
         });
       }
 
-      subtotal = cart.CartItems.reduce(
-        (acc, item) => acc + parseFloat(item.price),
+      subtotal = items.reduce(
+        (acc, item) => acc + item.price * item.quantity,
         0
       );
-
-      totalWeight = cart.CartItems.reduce(
-        (acc, item) => acc + 0.1 * item.quantity,
-        0
-      );
+      totalWeight = items.reduce((acc, item) => acc + 0.1 * item.quantity, 0);
     }
 
     const { cost: shippingCost, error: shippingError } = await getShippingCost({
@@ -277,21 +262,17 @@ exports.createOrder = async (req, res) => {
           quantity: item.quantity,
           price: item.price,
           phoneTypeId: item.phoneTypeId,
-          materialId: item.materialId,
           variantId: item.variantId,
         },
         { transaction: t }
       );
 
-      if (item.customImageId && item.customImageId.length > 0) {
-        await orderItem.addCustomImage(item.customImageId, {
-          transaction: t,
-        });
+      if (item.customImageId.length > 0) {
+        await orderItem.addCustomImage(item.customImageId, { transaction: t });
       }
 
-      if (item.cartItemInstance) {
+      if (item.cartItemInstance)
         await item.cartItemInstance.destroy({ transaction: t });
-      }
     }
 
     const payment = await Payment.create(
@@ -343,7 +324,7 @@ exports.getOrders = async (req, res) => {
           include: [
             {
               model: Product,
-              attributes: ["id", "name", "price"],
+              attributes: ["id", "name"],
               include: [
                 {
                   model: ProductImage,
@@ -355,9 +336,7 @@ exports.getOrders = async (req, res) => {
               model: CustomImage,
               through: { attributes: [] }, // hilangkan kolom pivot
             },
-            { model: CustomImage },
             { model: PhoneType },
-            { model: Material },
             { model: Variant },
           ],
         },
@@ -406,7 +385,7 @@ exports.getOrderById = async (req, res) => {
           include: [
             {
               model: Product,
-              attributes: ["id", "name", "price"],
+              attributes: ["id", "name"],
               include: [{ model: ProductImage }],
             },
             {
@@ -414,7 +393,6 @@ exports.getOrderById = async (req, res) => {
               through: { attributes: [] }, // hilangkan kolom pivot
             },
             { model: PhoneType },
-            { model: Material },
             { model: Variant },
           ],
         },
@@ -511,7 +489,6 @@ exports.getAllOrdersByAdmin = async (req, res) => {
               through: { attributes: [] }, // hilangkan kolom pivot
             },
             PhoneType,
-            Material,
             Variant,
           ],
         },
@@ -571,9 +548,7 @@ exports.getOrderByIdAdmin = async (req, res) => {
               model: CustomImage,
               through: { attributes: [] }, // hilangkan kolom pivot
             },
-            CustomImage,
             PhoneType,
-            Material,
             Variant,
           ],
         },

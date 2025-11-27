@@ -2,9 +2,9 @@ const {
   Product,
   CustomImage,
   ProductImage,
-  Material,
   Variant,
   PhoneType,
+  Sequelize,
 } = require("../models");
 const path = require("path");
 const fs = require("fs");
@@ -46,34 +46,14 @@ module.exports = {
 
   createProduct: async (req, res) => {
     try {
-      const {
-        name,
-        description,
-        price,
-        stock,
-        category,
-        materials,
-        variants,
-        phoneTypes,
-      } = req.body;
+      const { name, description, category, variants, phoneTypes } = req.body;
 
-      if (!name || !price || !stock || !category) {
-        return res.status(400).json({
-          message: "Name, price, stock, and category are required fields",
-        });
+      const product = await Product.create({ name, description, category });
+
+      if (phoneTypes) {
+        const parsedPhoneTypes = JSON.parse(phoneTypes);
+        await product.setPhoneTypes(parsedPhoneTypes);
       }
-
-      const product = await Product.create({
-        name,
-        description,
-        price,
-        stock,
-        category,
-      });
-
-      if (phoneTypes) await product.setPhoneTypes(phoneTypes);
-      if (materials) await product.setMaterials(materials);
-      if (variants) await product.setVariants(variants);
 
       if (req.files && req.files.length > 0) {
         const productImages = req.files.map((file, index) => ({
@@ -85,8 +65,13 @@ module.exports = {
         await ProductImage.bulkCreate(productImages);
       }
 
+      if (variants) {
+        const parsedVariants = JSON.parse(variants);
+        await product.setVariants(parsedVariants);
+      }
+
       const newProduct = await Product.findByPk(product.id, {
-        include: [ProductImage, Material, Variant, PhoneType],
+        include: [ProductImage, Variant, PhoneType],
       });
 
       await redis.del("products:all");
@@ -103,34 +88,37 @@ module.exports = {
   updateProduct: async (req, res) => {
     try {
       const { id } = req.params;
-      const {
-        name,
-        description,
-        price,
-        stock,
-        category,
-        materials,
-        variants,
-        phoneTypes,
-      } = req.body;
+      const { name, description, category, variants, phoneTypes } = req.body;
 
-      const product = await Product.findByPk(id);
+      const product = await Product.findByPk(id, {
+        include: [Variant, ProductImage, PhoneType],
+      });
+
       if (!product)
         return res.status(404).json({ message: "Product not found" });
 
       await product.update({
         name,
         description,
-        price,
-        stock,
         category,
       });
 
-      if (phoneTypes) await product.setPhoneTypes(phoneTypes);
-      if (materials) await product.setMaterials(materials);
-      if (variants) await product.setVariants(variants);
+      if (phoneTypes) {
+        const parsedPhoneTypes = JSON.parse(phoneTypes);
+        await product.setPhoneTypes(parsedPhoneTypes);
+      }
 
       if (req.files && req.files.length > 0) {
+        const existingImages = await product.getProductImages();
+        const existingImageIds = existingImages.map((img) => img.id);
+
+        await ProductImage.destroy({
+          where: {
+            productId: product.id,
+            id: { [Sequelize.Op.in]: existingImageIds },
+          },
+        });
+
         const productImages = req.files.map((file, index) => ({
           productId: product.id,
           imageUrl: `/uploads/products/${file.filename}`,
@@ -140,8 +128,47 @@ module.exports = {
         await ProductImage.bulkCreate(productImages);
       }
 
+      if (variants) {
+        const incoming = JSON.parse(variants);
+        const existing = product.Variants;
+
+        const incomingIds = incoming.filter((v) => v.id).map((v) => v.id);
+        const existingIds = existing.map((v) => v.id);
+
+        const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
+        if (toDelete.length > 0) {
+          await Variant.destroy({
+            where: { id: toDelete },
+          });
+        }
+
+        for (const v of incoming) {
+          if (v.id) {
+            const variantInstance = existing.find((e) => e.id === v.id);
+
+            await Variant.update(
+              {
+                name: v.name ?? variantInstance.name,
+                price: v.price ?? variantInstance.price,
+                stock: v.stock ?? variantInstance.stock,
+                max_images: v.max_images ?? variantInstance.max_images,
+              },
+              { where: { id: v.id } }
+            );
+          } else {
+            await Variant.create({
+              productId: product.id,
+              name: v.name,
+              price: v.price,
+              stock: v.stock,
+              max_images: v.max_images ?? 1,
+            });
+          }
+        }
+      }
+
       const updatedProduct = await Product.findByPk(product.id, {
-        include: [ProductImage, Material, Variant, PhoneType],
+        include: [ProductImage, Variant, PhoneType],
       });
 
       await redis.del("products:all");
@@ -159,14 +186,33 @@ module.exports = {
 
   deleteProductImage: async (req, res) => {
     try {
-      const { imageId } = req.params;
-      const image = await ProductImage.findByPk(imageId);
+      const { id } = req.params;
+      console.log("Image ID to delete:", id);
+      const image = await ProductImage.findByPk(id);
       if (!image) return res.status(404).json({ message: "Image not found" });
+
+      const isPrimary = image.isPrimary;
 
       const filePath = path.join(__dirname, "..", image.imageUrl);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
       await image.destroy();
+
+      const remainingImages = await ProductImage.findAll({
+        where: { productId: image.productId },
+      });
+
+      if (isPrimary) {
+        if (remainingImages.length > 0) {
+          const newPrimaryImage = remainingImages[0];
+          await newPrimaryImage.update({ isPrimary: true });
+          console.log("New primary image set to:", newPrimaryImage.id);
+        } else {
+          console.log(
+            "No primary image left, product has no primary image now."
+          );
+        }
+      }
 
       await redis.del("products:all");
       await redis.del(`product:${image.productId}`);
@@ -180,7 +226,7 @@ module.exports = {
     try {
       const { id } = req.params;
       const product = await Product.findByPk(id, {
-        include: [ProductImage],
+        include: [ProductImage, Variant],
       });
 
       if (!product) {
@@ -194,10 +240,9 @@ module.exports = {
           await img.destroy();
         }
       }
+      await Variant.destroy({ where: { productId: id } });
 
       await product.setPhoneTypes([]);
-      await product.setMaterials([]);
-      await product.setVariants([]);
 
       await product.destroy();
 

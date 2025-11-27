@@ -1,4 +1,4 @@
-const { PhoneType, Material, Variant } = require("../models");
+const { PhoneType, Variant } = require("../models");
 const redis = require("../config/redis");
 
 module.exports = {
@@ -72,74 +72,6 @@ module.exports = {
       res.status(500).json({ error: err.message });
     }
   },
-  getMaterials: async (req, res) => {
-    try {
-      const cacheKey = "materials:list";
-
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return res.json({
-          message: "Materials retrieved (cache)",
-          data: JSON.parse(cached),
-        });
-      }
-
-      const materials = await Material.findAll({ order: [["name", "ASC"]] });
-
-      await redis.setex(cacheKey, 300, JSON.stringify(materials));
-
-      res.json({ message: "Materials retrieved", data: materials });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  },
-  createMaterial: async (req, res) => {
-    try {
-      const { name, description } = req.body;
-      const material = await Material.create({ name, description });
-
-      await redis.del("materials:list");
-
-      res.status(201).json({ message: "Material created", data: material });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  },
-  updateMaterial: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name, description } = req.body;
-
-      const material = await Material.findByPk(id);
-      if (!material)
-        return res.status(404).json({ message: "Material not found" });
-
-      material.name = name || material.name;
-      material.description = description || material.description;
-      await material.save();
-
-      await redis.del("materials:list");
-
-      res.json({ message: "Material updated", data: material });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  },
-  deleteMaterial: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const material = await Material.findByPk(id);
-      if (!material)
-        return res.status(404).json({ message: "Material not found" });
-
-      await material.destroy();
-      await redis.del("materials:list");
-
-      res.json({ message: "Material deleted" });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  },
 
   getVariants: async (req, res) => {
     try {
@@ -164,8 +96,8 @@ module.exports = {
   },
   createVariant: async (req, res) => {
     try {
-      const { name, description } = req.body;
-      const variant = await Variant.create({ name, description });
+      const { name, price, stock, max_images } = req.body;
+      const variant = await Variant.create({ name, price, stock, max_images });
 
       await redis.del("variants:list");
 
@@ -177,12 +109,14 @@ module.exports = {
   updateVariant: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description } = req.body;
+      const { name, price, stock, max_images } = req.body;
       const variant = await Variant.findByPk(id);
       if (!variant)
         return res.status(404).json({ message: "Variant not found" });
-      variant.name = name || variant.name;
-      variant.description = description || variant.description;
+      variant.name = name ?? variant.name;
+      variant.price = price ?? variant.price;
+      variant.stock = stock ?? variant.stock;
+      variant.max_images = max_images ?? variant.max_images;
       await variant.save();
 
       await redis.del("variants:list");

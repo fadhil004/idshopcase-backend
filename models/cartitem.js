@@ -10,9 +10,8 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       CartItem.belongsTo(models.Cart, { foreignKey: "cartId" });
       CartItem.belongsTo(models.Product, { foreignKey: "productId" });
-      CartItem.belongsTo(models.CustomImage, { foreignKey: "customImageId" });
+      // CartItem.belongsTo(models.CustomImage, { foreignKey: "customImageId" });
       CartItem.belongsTo(models.PhoneType, { foreignKey: "phoneTypeId" });
-      CartItem.belongsTo(models.Material, { foreignKey: "materialId" });
       CartItem.belongsTo(models.Variant, { foreignKey: "variantId" });
     }
   }
@@ -20,11 +19,10 @@ module.exports = (sequelize, DataTypes) => {
     {
       cartId: DataTypes.INTEGER,
       productId: DataTypes.INTEGER,
-      customImageId: DataTypes.INTEGER,
+      // customImageId: DataTypes.INTEGER,
       quantity: DataTypes.INTEGER,
       price: DataTypes.DECIMAL,
       phoneTypeId: DataTypes.INTEGER,
-      materialId: DataTypes.INTEGER,
       variantId: DataTypes.INTEGER,
     },
     {
