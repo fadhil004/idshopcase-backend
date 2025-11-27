@@ -12,6 +12,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts
+
       - name: Upload backend to server
         run: |
           rsync -avz --delete ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/var/www/idshopcase/backend/
