@@ -28,7 +28,7 @@ jobs:
           rsync -avz --delete -e "ssh -i ~/.ssh/id_ed25519" ./ \
           ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/var/www/idshopcase/backend/
 
-      - name: SSH commands
+      - name: SSH & Deploy
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -36,6 +36,14 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /var/www/idshopcase/backend/
+
             npm install
+            npm install -g sequelize-cli
+
+            npx sequelize-cli db:migrate
+            npx sequelize-cli db:seed --seed 20250905124733-create-admin-user.js
+            npx sequelize-cli db:seed --seed 20251109164431-jnt-address-mappings-from-csv.js
+
+            # Restart PM2
             pm2 restart idshopcase-backend || pm2 start server.js --name idshopcase-backend
             pm2 save
