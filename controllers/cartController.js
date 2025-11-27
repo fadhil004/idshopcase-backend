@@ -2,17 +2,22 @@ const {
   Cart,
   CartItem,
   Product,
-  CustomImage,
-  Material,
   Variant,
   PhoneType,
   ProductImage,
+  ProductPhoneType,
 } = require("../models");
+const redis = require("../config/redis");
 
 module.exports = {
   getCart: async (req, res) => {
     try {
       const userId = req.user.id;
+
+      const cached = await redis.get(`cart:${userId}`);
+      if (cached) {
+        return res.json(JSON.parse(cached));
+      }
 
       const cart = await Cart.findOne({
         where: { userId },
@@ -22,15 +27,8 @@ module.exports = {
             include: [
               {
                 model: Product,
-                include: [
-                  { model: ProductImage },
-                  { model: Material },
-                  { model: Variant },
-                  { model: PhoneType },
-                ],
+                include: [{ model: ProductImage }, { model: PhoneType }],
               },
-              CustomImage,
-              Material,
               Variant,
               PhoneType,
             ],
@@ -39,6 +37,8 @@ module.exports = {
       });
 
       if (!cart) return res.status(404).json({ message: "Cart not found" });
+
+      await redis.setex(`cart:${userId}`, 120, JSON.stringify(cart));
 
       return res.json(cart);
     } catch (err) {
@@ -51,26 +51,34 @@ module.exports = {
     try {
       const userId = req.user.id;
 
-      const {
-        productId,
-        customImageId,
-        quantity,
-        phoneTypeId,
-        materialId,
-        variantId,
-      } = req.body;
+      const { productId, quantity, phoneTypeId, variantId } = req.body;
+
+      if (!variantId)
+        return res.status(400).json({ message: "variantId is required" });
+
+      if (!quantity || quantity < 1)
+        return res.status(400).json({ message: "Invalid quantity" });
 
       const product = await Product.findByPk(productId, {
-        include: [
-          { model: ProductImage },
-          { model: Material },
-          { model: Variant },
-          { model: PhoneType },
-        ],
+        include: [ProductImage, PhoneType, Variant],
       });
 
       if (!product)
         return res.status(404).json({ message: "Product not found" });
+
+      const variant = await Variant.findOne({
+        where: { id: variantId, productId },
+      });
+
+      if (!variant)
+        return res
+          .status(404)
+          .json({ message: "Variant does not belong to this product" });
+
+      if (quantity > variant.stock)
+        return res
+          .status(400)
+          .json({ message: `Stock insufficient. Only ${variant.stock} left` });
 
       const [cart] = await Cart.findOrCreate({ where: { userId } });
 
@@ -78,18 +86,18 @@ module.exports = {
         where: {
           cartId: cart.id,
           productId,
-          customImageId: customImageId || null,
           phoneTypeId: phoneTypeId || null,
-          materialId: materialId || null,
-          variantId: variantId || null,
+          variantId,
         },
-        include: [Product],
+        include: [Variant],
       });
 
       if (existingItem) {
         existingItem.quantity += quantity;
-        existingItem.price = existingItem.Product.price * existingItem.quantity;
+        existingItem.price = existingItem.Variant.price * existingItem.quantity;
         await existingItem.save();
+
+        await redis.del(`cart:${userId}`);
 
         return res.json({ message: "Cart updated", item: existingItem });
       }
@@ -97,14 +105,13 @@ module.exports = {
       const newItem = await CartItem.create({
         cartId: cart.id,
         productId,
-        customImageId: customImageId || null,
         quantity,
         phoneTypeId: phoneTypeId || null,
-        materialId: materialId || null,
-        variantId: variantId || null,
-        price: product.price * quantity,
+        variantId,
+        price: variant.price * quantity,
       });
 
+      await redis.del(`cart:${userId}`);
       return res.status(201).json({ message: "Item added", item: newItem });
     } catch (err) {
       console.error(err);
@@ -115,15 +122,58 @@ module.exports = {
   updateCartItem: async (req, res) => {
     try {
       const { id } = req.params;
-      const { quantity } = req.body;
+      const { quantity, phoneTypeId, variantId } = req.body;
 
-      const item = await CartItem.findByPk(id, { include: [Product] });
+      const item = await CartItem.findByPk(id, {
+        include: [{ model: Product, include: [PhoneType, Variant] }, Variant],
+      });
       if (!item) return res.status(404).json({ message: "Item not found" });
 
+      let selectedVariant = item.Variant;
+
+      if (variantId) {
+        selectedVariant = await Variant.findOne({
+          where: {
+            id: variantId,
+            productId: item.productId,
+          },
+        });
+
+        if (!selectedVariant)
+          return res
+            .status(404)
+            .json({ message: "Variant does not belong to this product" });
+
+        item.variantId = variantId;
+      }
+
+      if (phoneTypeId) {
+        const validPhoneType = item.Product.PhoneTypes.some(
+          (pt) => pt.id === Number(phoneTypeId)
+        );
+
+        if (!validPhoneType) {
+          return res.status(400).json({
+            message: "Phone type not available for this product",
+          });
+        }
+
+        item.phoneTypeId = phoneTypeId;
+      }
+
+      const qty = quantity || item.quantity;
+
+      if (qty > selectedVariant.stock)
+        return res.status(400).json({
+          message: `Stock insufficient. Only ${selectedVariant.stock} left`,
+        });
+
       item.quantity = quantity;
-      item.price = item.Product.price * quantity;
+      item.price = item.Variant.price * quantity;
       await item.save();
 
+      await redis.del(`cart:${item.cartId}`);
+      await redis.del(`cart:${item.userId}`);
       return res.json({ message: "Cart item updated", item });
     } catch (err) {
       console.error(err);
@@ -139,6 +189,8 @@ module.exports = {
       if (!item) return res.status(404).json({ message: "Item not found" });
 
       await item.destroy();
+      await redis.del(`cart:${item.userId}`);
+      await redis.del(`cart:${item.cartId}`);
       return res.json({ message: "Item removed from cart" });
     } catch (err) {
       console.error(err);

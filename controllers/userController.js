@@ -3,6 +3,7 @@ const { User, Address, JntAddressMapping } = require("../models");
 const { hashPassword, comparePassword } = require("../utils/hash");
 const fs = require("fs");
 const path = require("path");
+const redis = require("../config/redis");
 
 module.exports = {
   createUserByAdmin: async (req, res) => {
@@ -36,6 +37,9 @@ module.exports = {
         ...data
       } = user.toJSON();
 
+      await redis.del("users:all");
+      await redis.del(`user:${user.id}`);
+
       return res.status(201).json({
         message: "User successfully created by admin",
         user: data,
@@ -48,12 +52,22 @@ module.exports = {
 
   getProfile: async (req, res) => {
     try {
+      const cacheKey = `user:profile:${req.user.id}`;
+
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json(JSON.parse(cached));
+      }
+
       const user = await User.findByPk(req.user.id, {
         attributes: ["id", "name", "email", "phone", "profile_picture", "role"],
         include: [{ model: Address, as: "Addresses" }],
       });
 
       if (!user) return res.status(404).json({ message: "User not found" });
+
+      await redis.setex(cacheKey, 120, JSON.stringify(user));
+
       return res.json(user);
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -86,6 +100,9 @@ module.exports = {
 
       await user.save();
 
+      await redis.del(`user:profile:${req.user.id}`);
+      await redis.del(`user:${req.user.id}`);
+
       return res.json({
         message: "Profile updated",
         user: {
@@ -115,6 +132,9 @@ module.exports = {
 
       user.password = await hashPassword(newPassword);
       await user.save();
+
+      await redis.del(`user:profile:${req.user.id}`);
+      await redis.del(`user:${req.user.id}`);
 
       return res.json({ message: "Password updated" });
     } catch (err) {
@@ -170,6 +190,9 @@ module.exports = {
         jntAddressMappingId: mapping.id,
       });
 
+      await redis.del(`user:addresses:${req.user.id}`);
+      await redis.del(`user:profile:${req.user.id}`);
+
       return res.status(201).json({ message: "Address added", newAddress });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -178,6 +201,13 @@ module.exports = {
 
   getAddresses: async (req, res) => {
     try {
+      const cacheKey = `user:addresses:${req.user.id}`;
+
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json({ addresses: JSON.parse(cached) });
+      }
+
       const addresses = await Address.findAll({
         where: { userId: req.user.id },
         attributes: [
@@ -193,9 +223,10 @@ module.exports = {
         ],
       });
 
-      if (!addresses || addresses.length === 0) {
+      if (!addresses.length)
         return res.status(404).json({ message: "No addresses found" });
-      }
+
+      await redis.setex(cacheKey, 120, JSON.stringify(addresses));
 
       return res.json({ addresses });
     } catch (err) {
@@ -206,6 +237,13 @@ module.exports = {
   getAddressById: async (req, res) => {
     try {
       const { id } = req.params;
+      const cacheKey = `user:address:${req.user.id}:${id}`;
+
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json({ address: JSON.parse(cached) });
+      }
+
       const address = await Address.findOne({
         where: { id, userId: req.user.id },
         attributes: [
@@ -223,6 +261,8 @@ module.exports = {
 
       if (!address)
         return res.status(404).json({ message: "Address not found" });
+
+      await redis.setex(cacheKey, 120, JSON.stringify(address));
 
       return res.json({ address });
     } catch (err) {
@@ -297,6 +337,10 @@ module.exports = {
 
       await addr.save();
 
+      await redis.del(`user:addresses:${req.user.id}`);
+      await redis.del(`user:address:${req.user.id}:${id}`);
+      await redis.del(`user:profile:${req.user.id}`);
+
       return res.json({
         message: "Address updated",
         addr,
@@ -335,6 +379,10 @@ module.exports = {
         }
       }
 
+      await redis.del(`user:addresses:${req.user.id}`);
+      await redis.del(`user:address:${req.user.id}:${id}`);
+      await redis.del(`user:profile:${req.user.id}`);
+
       return res.json({ message: "Address deleted" });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -344,9 +392,19 @@ module.exports = {
   //Admin Panel
   getAllUsers: async (req, res) => {
     try {
+      const cacheKey = "users:all";
+
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json(JSON.parse(cached));
+      }
+
       const users = await User.findAll({
         attributes: ["id", "name", "email", "phone", "role", "profile_picture"],
       });
+
+      await redis.setex(cacheKey, 60, JSON.stringify(users));
+
       res.json(users);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -355,10 +413,20 @@ module.exports = {
 
   getUserById: async (req, res) => {
     try {
-      const user = await User.findByPk(req.params.id, {
+      const id = req.params.id;
+      const cacheKey = `user:${id}`;
+
+      const cached = await redis.get(cacheKey);
+      if (cached) return res.json(JSON.parse(cached));
+
+      const user = await User.findByPk(id, {
         attributes: ["id", "name", "email", "phone", "role", "profile_picture"],
       });
+
       if (!user) return res.status(404).json({ message: "User not found" });
+
+      await redis.setex(cacheKey, 120, JSON.stringify(user));
+
       res.json(user);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -378,6 +446,9 @@ module.exports = {
       user.role = role || user.role;
 
       await user.save();
+      await redis.del("users:all");
+      await redis.del(`user:${req.params.id}`);
+
       res.json({ message: "User updated by admin", user });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -395,6 +466,9 @@ module.exports = {
       }
 
       await user.destroy();
+      await redis.del("users:all");
+      await redis.del(`user:${req.params.id}`);
+
       res.json({ message: "User deleted" });
     } catch (err) {
       res.status(500).json({ error: err.message });

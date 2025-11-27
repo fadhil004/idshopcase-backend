@@ -4,7 +4,7 @@ require("dotenv").config();
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    const hashedPassword = await bcrypt.hashSync(process.env.PASS_ADMIN, 10); 
+    const hashedPassword = await bcrypt.hashSync(process.env.PASS_ADMIN, 10);
 
     await queryInterface.bulkInsert(
       "Users",
@@ -18,6 +18,7 @@ module.exports = {
           role: "admin",
           resetPasswordToken: null,
           resetPasswordExpire: null,
+          is_verified: true,
           createdAt: new Date(),
           updatedAt: new Date(),
         },

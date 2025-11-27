@@ -8,17 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         through: "ProductPhoneTypes",
         foreignKey: "productId",
       });
-
-      Product.belongsToMany(models.Material, {
-        through: "ProductMaterials",
-        foreignKey: "productId",
-      });
-
-      Product.belongsToMany(models.Variant, {
-        through: "ProductVariants",
-        foreignKey: "productId",
-      });
-
+      Product.hasMany(models.Variant, { foreignKey: "productId" });
       Product.hasMany(models.CustomImage, { foreignKey: "productId" });
       Product.hasMany(models.CartItem, { foreignKey: "productId" });
       Product.hasMany(models.OrderItem, { foreignKey: "productId" });
@@ -30,8 +20,6 @@ module.exports = (sequelize, DataTypes) => {
     {
       name: DataTypes.STRING,
       description: DataTypes.TEXT,
-      price: DataTypes.DECIMAL,
-      stock: DataTypes.INTEGER,
       category: {
         type: DataTypes.STRING,
         allowNull: false,
