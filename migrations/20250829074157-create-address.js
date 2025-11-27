@@ -1,52 +1,37 @@
 "use strict";
-/** @type {import('sequelize-cli').Migration} */
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable("Addresses", {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER,
-      },
+      id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       userId: {
         type: Sequelize.INTEGER,
+        references: { model: "Users", key: "id" },
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
       },
-      recipient_name: {
-        type: Sequelize.STRING,
+      recipient_name: Sequelize.STRING,
+      phone: Sequelize.STRING,
+      province: Sequelize.TEXT,
+      city: Sequelize.TEXT,
+      district: Sequelize.TEXT,
+      postal_code: Sequelize.STRING,
+      details: Sequelize.TEXT,
+      is_primary: Sequelize.BOOLEAN,
+
+      jntAddressMappingId: {
+        type: Sequelize.INTEGER,
+        references: { model: "JntAddressMappings", key: "id" },
+        onUpdate: "CASCADE",
+        onDelete: "SET NULL",
       },
-      phone: {
-        type: Sequelize.STRING,
-      },
-      province: {
-        type: Sequelize.TEXT,
-      },
-      city: {
-        type: Sequelize.TEXT,
-      },
-      district: {
-        type: Sequelize.TEXT,
-      },
-      postal_code: {
-        type: Sequelize.STRING,
-      },
-      details: {
-        type: Sequelize.TEXT,
-      },
-      is_primary: {
-        type: Sequelize.BOOLEAN,
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
+
+      createdAt: Sequelize.DATE,
+      updatedAt: Sequelize.DATE,
     });
   },
-  async down(queryInterface, Sequelize) {
+
+  down: async (queryInterface) => {
     await queryInterface.dropTable("Addresses");
   },
 };

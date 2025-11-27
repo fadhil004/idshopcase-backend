@@ -1,37 +1,26 @@
-'use strict';
-/** @type {import('sequelize-cli').Migration} */
+"use strict";
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('CustomImages', {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER
-      },
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.createTable("CustomImages", {
+      id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       userId: {
-        type: Sequelize.INTEGER
+        type: Sequelize.INTEGER,
+        references: { model: "Users", key: "id" },
       },
       productId: {
-        type: Sequelize.INTEGER
+        type: Sequelize.INTEGER,
+        references: { model: "Products", key: "id" },
       },
-      image_url: {
-        type: Sequelize.STRING
-      },
-      processed_url: {
-        type: Sequelize.STRING
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      }
+      image_url: Sequelize.STRING,
+      processed_url: Sequelize.STRING,
+
+      createdAt: Sequelize.DATE,
+      updatedAt: Sequelize.DATE,
     });
   },
-  async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('CustomImages');
-  }
+
+  down: async (queryInterface) => {
+    await queryInterface.dropTable("CustomImages");
+  },
 };
