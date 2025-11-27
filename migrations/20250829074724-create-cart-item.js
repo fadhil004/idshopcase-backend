@@ -2,17 +2,26 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.createTable("ProductPhoneTypes", {
+    await queryInterface.createTable("CartItems", {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
+      cartId: {
+        type: Sequelize.INTEGER,
+        references: { model: "Carts", key: "id" },
+        onDelete: "CASCADE",
+      },
       productId: {
         type: Sequelize.INTEGER,
         references: { model: "Products", key: "id" },
-        onDelete: "CASCADE",
       },
+      quantity: Sequelize.INTEGER,
+      price: Sequelize.DECIMAL,
       phoneTypeId: {
         type: Sequelize.INTEGER,
         references: { model: "PhoneTypes", key: "id" },
-        onDelete: "CASCADE",
+      },
+      variantId: {
+        type: Sequelize.INTEGER,
+        references: { model: "Variants", key: "id" },
       },
 
       createdAt: Sequelize.DATE,
@@ -21,6 +30,6 @@ module.exports = {
   },
 
   down: async (queryInterface) => {
-    await queryInterface.dropTable("ProductPhoneTypes");
+    await queryInterface.dropTable("CartItems");
   },
 };

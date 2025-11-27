@@ -1,45 +1,27 @@
 "use strict";
-/** @type {import('sequelize-cli').Migration} */
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable("Payments", {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER,
-      },
+      id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       orderId: {
         type: Sequelize.INTEGER,
+        references: { model: "Orders", key: "id" },
       },
-      payment_gateway: {
-        type: Sequelize.STRING,
-      },
-      transaction_id: {
-        type: Sequelize.STRING,
-      },
+      payment_gateway: Sequelize.STRING,
+      transaction_id: Sequelize.STRING,
       status: {
         type: Sequelize.ENUM("pending", "success", "failed", "expired"),
-        allowNull: false,
         defaultValue: "pending",
       },
-      amount: {
-        type: Sequelize.DECIMAL,
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
+      amount: Sequelize.DECIMAL,
+
+      createdAt: Sequelize.DATE,
+      updatedAt: Sequelize.DATE,
     });
   },
-  async down(queryInterface, Sequelize) {
+
+  down: async (queryInterface) => {
     await queryInterface.dropTable("Payments");
-    await queryInterface.sequelize.query(
-      'DROP TYPE IF EXISTS "enum_Payments_status";'
-    );
   },
 };

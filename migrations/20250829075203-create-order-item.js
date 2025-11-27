@@ -1,40 +1,34 @@
-'use strict';
-/** @type {import('sequelize-cli').Migration} */
+"use strict";
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('OrderItems', {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER
-      },
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.createTable("OrderItems", {
+      id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       orderId: {
-        type: Sequelize.INTEGER
+        type: Sequelize.INTEGER,
+        references: { model: "Orders", key: "id" },
       },
       productId: {
-        type: Sequelize.INTEGER
+        type: Sequelize.INTEGER,
+        references: { model: "Products", key: "id" },
       },
-      customImageId: {
-        type: Sequelize.INTEGER
+      quantity: Sequelize.INTEGER,
+      price: Sequelize.DECIMAL,
+      phoneTypeId: {
+        type: Sequelize.INTEGER,
+        references: { model: "PhoneTypes", key: "id" },
       },
-      quantity: {
-        type: Sequelize.INTEGER
+      variantId: {
+        type: Sequelize.INTEGER,
+        references: { model: "Variants", key: "id" },
       },
-      price: {
-        type: Sequelize.DECIMAL
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      }
+
+      createdAt: Sequelize.DATE,
+      updatedAt: Sequelize.DATE,
     });
   },
-  async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('OrderItems');
-  }
+
+  down: async (queryInterface) => {
+    await queryInterface.dropTable("OrderItems");
+  },
 };

@@ -1,41 +1,23 @@
 "use strict";
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable("ProductImages", {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER,
-      },
+      id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       productId: {
         type: Sequelize.INTEGER,
-        allowNull: false,
-        references: {
-          model: "Products",
-          key: "id",
-        },
+        references: { model: "Products", key: "id" },
         onDelete: "CASCADE",
       },
-      imageUrl: {
-        type: Sequelize.STRING,
-        allowNull: false,
-      },
-      isPrimary: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false,
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
+      imageUrl: Sequelize.STRING,
+      isPrimary: { type: Sequelize.BOOLEAN, defaultValue: false },
+
+      createdAt: Sequelize.DATE,
+      updatedAt: Sequelize.DATE,
     });
   },
-  async down(queryInterface, Sequelize) {
+
+  down: async (queryInterface) => {
     await queryInterface.dropTable("ProductImages");
   },
 };

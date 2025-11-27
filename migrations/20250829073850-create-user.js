@@ -1,55 +1,31 @@
 "use strict";
-/** @type {import('sequelize-cli').Migration} */
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable("Users", {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER,
-      },
-      name: {
-        type: Sequelize.STRING,
-      },
-      email: {
-        type: Sequelize.STRING,
-      },
-      password: {
-        type: Sequelize.STRING,
-      },
-      phone: {
-        type: Sequelize.STRING,
-      },
-      profile_picture: {
-        type: Sequelize.STRING,
-      },
+      id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
+      name: Sequelize.STRING,
+      email: Sequelize.STRING,
+      password: Sequelize.STRING,
+      phone: Sequelize.STRING,
+      profile_picture: Sequelize.STRING,
       role: {
         type: Sequelize.ENUM("customer", "admin"),
         allowNull: false,
         defaultValue: "customer",
       },
-      resetPasswordToken: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      resetPasswordExpire: {
-        type: Sequelize.DATE,
-        allowNull: true,
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
+      resetPasswordToken: Sequelize.STRING,
+      resetPasswordExpire: Sequelize.DATE,
+      otp_code: Sequelize.STRING,
+      otp_expire: Sequelize.DATE,
+      is_verified: { type: Sequelize.BOOLEAN, defaultValue: false },
+
+      createdAt: Sequelize.DATE,
+      updatedAt: Sequelize.DATE,
     });
   },
 
-  async down(queryInterface, Sequelize) {
+  down: async (queryInterface) => {
     await queryInterface.dropTable("Users");
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Users_role";');
   },
 };
