@@ -22,7 +22,9 @@ const crypto = require("crypto");
 exports.getOrderSummary = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { addressId, selectedItemIds } = req.body;
+    const { addressId, selectedItemIds, buyNow: buyNowRaw } = req.body;
+
+    const buyNow = buyNowRaw ? JSON.parse(buyNowRaw) : null;
 
     const address = await Address.findByPk(addressId, {
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
@@ -35,29 +37,62 @@ exports.getOrderSummary = async (req, res) => {
         .status(400)
         .json({ message: "J&T mapping not found for this address" });
 
-    const cart = await Cart.findOne({
-      where: { userId },
-      include: [
-        {
-          model: CartItem,
-          include: [{ model: Variant }],
-          where: { id: selectedItemIds },
-        },
-      ],
-    });
+    let items = [];
+    let subtotal = 0;
+    let totalWeight = 0;
+    if (buyNow) {
+      const variant = await Variant.findByPk(buyNow.variantId);
+      if (!variant) {
+        return res.status(404).json({ message: "Variant not found" });
+      }
 
-    if (!cart || cart.CartItems.length === 0)
-      return res.status(400).json({ message: "No selected items found" });
+      const price = parseFloat(variant.price);
 
-    const subtotal = cart.CartItems.reduce(
-      (acc, item) => acc + parseFloat(item.Variant.price) * item.quantity,
-      0
-    );
+      items.push({
+        id: null,
+        quantity: buyNow.quantity,
+        price,
+        subtotal: price * buyNow.quantity,
+        variantId: variant.id,
+      });
 
-    const totalWeight = cart.CartItems.reduce(
-      (acc, item) => acc + 0.1 * item.quantity,
-      0
-    );
+      subtotal = price * buyNow.quantity;
+      totalWeight = 0.1 * buyNow.quantity;
+    } else {
+      if (!selectedItemIds || selectedItemIds.length === 0) {
+        return res
+          .status(400)
+          .json({ message: "selectedItemIds required when not using buyNow" });
+      }
+
+      const cart = await Cart.findOne({
+        where: { userId },
+        include: [
+          {
+            model: CartItem,
+            include: [{ model: Variant }],
+            where: { id: selectedItemIds },
+          },
+        ],
+      });
+
+      if (!cart || cart.CartItems.length === 0)
+        return res.status(400).json({ message: "No selected items found" });
+
+      items = cart.CartItems.map((item) => {
+        const price = parseFloat(item.Variant.price);
+        return {
+          id: item.id,
+          quantity: item.quantity,
+          price,
+          subtotal: item.quantity * price,
+          variantId: item.variantId,
+        };
+      });
+
+      subtotal = items.reduce((acc, item) => acc + item.subtotal, 0);
+      totalWeight = items.reduce((acc, item) => acc + 0.1 * item.quantity, 0);
+    }
 
     const {
       cost: shippingCost,
@@ -76,12 +111,7 @@ exports.getOrderSummary = async (req, res) => {
     return res.json({
       message: "Order summary calculated",
       data: {
-        items: cart.CartItems.map((item) => ({
-          id: item.id,
-          quantity: item.quantity,
-          price: parseFloat(item.Variant.price),
-          subtotal: item.quantity * parseFloat(item.Variant.price),
-        })),
+        items,
         subtotal,
         shipping: {
           courier: "J&T Express",
@@ -89,6 +119,7 @@ exports.getOrderSummary = async (req, res) => {
           cost: shippingCost,
         },
         total: subtotal + shippingCost,
+        buyNow: !!buyNow,
       },
     });
   } catch (error) {
