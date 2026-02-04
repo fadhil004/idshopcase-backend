@@ -27,7 +27,7 @@ module.exports = {
         await redis.setex(
           `customImage:${id}`,
           600,
-          JSON.stringify(customImage)
+          JSON.stringify(customImage),
         );
       }
 
@@ -128,43 +128,59 @@ module.exports = {
         await ProductImage.bulkCreate(productImages);
       }
 
+      // if (variants) {
+      //   const incoming = JSON.parse(variants);
+      //   const existing = product.Variants;
+
+      //   const incomingIds = incoming.filter((v) => v.id).map((v) => v.id);
+      //   const existingIds = existing.map((v) => v.id);
+
+      //   const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
+      //   if (toDelete.length > 0) {
+      //     await Variant.destroy({
+      //       where: { id: toDelete },
+      //     });
+      //   }
+
+      //   for (const v of incoming) {
+      //     if (v.id) {
+      //       const variantInstance = existing.find((e) => e.id === v.id);
+
+      //       await Variant.update(
+      //         {
+      //           name: v.name ?? variantInstance.name,
+      //           price: v.price ?? variantInstance.price,
+      //           stock: v.stock ?? variantInstance.stock,
+      //           max_images: v.max_images ?? variantInstance.max_images,
+      //         },
+      //         { where: { id: v.id } }
+      //       );
+      //     } else {
+      //       await Variant.create({
+      //         productId: product.id,
+      //         name: v.name,
+      //         price: v.price,
+      //         stock: v.stock,
+      //         max_images: v.max_images ?? 1,
+      //       });
+      //     }
+      //   }
+      // }
+
       if (variants) {
-        const incoming = JSON.parse(variants);
-        const existing = product.Variants;
+        const variantIds = JSON.parse(variants); // [1,2,3]
 
-        const incomingIds = incoming.filter((v) => v.id).map((v) => v.id);
-        const existingIds = existing.map((v) => v.id);
+        // 1️⃣ Lepas semua variant lama dari product ini
+        await Variant.update(
+          { productId: null },
+          { where: { productId: product.id } },
+        );
 
-        const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
-        if (toDelete.length > 0) {
-          await Variant.destroy({
-            where: { id: toDelete },
-          });
-        }
-
-        for (const v of incoming) {
-          if (v.id) {
-            const variantInstance = existing.find((e) => e.id === v.id);
-
-            await Variant.update(
-              {
-                name: v.name ?? variantInstance.name,
-                price: v.price ?? variantInstance.price,
-                stock: v.stock ?? variantInstance.stock,
-                max_images: v.max_images ?? variantInstance.max_images,
-              },
-              { where: { id: v.id } }
-            );
-          } else {
-            await Variant.create({
-              productId: product.id,
-              name: v.name,
-              price: v.price,
-              stock: v.stock,
-              max_images: v.max_images ?? 1,
-            });
-          }
-        }
+        // 2️⃣ Pasang variant baru
+        await Variant.update(
+          { productId: product.id },
+          { where: { id: variantIds } },
+        );
       }
 
       const updatedProduct = await Product.findByPk(product.id, {
@@ -209,7 +225,7 @@ module.exports = {
           console.log("New primary image set to:", newPrimaryImage.id);
         } else {
           console.log(
-            "No primary image left, product has no primary image now."
+            "No primary image left, product has no primary image now.",
           );
         }
       }

@@ -3,6 +3,8 @@ const { sequelize } = require("./models");
 
 const PORT = process.env.PORT || 5000;
 
+require("./jobs/paymentExpireJob");
+
 sequelize
   .authenticate()
   .then(() => {

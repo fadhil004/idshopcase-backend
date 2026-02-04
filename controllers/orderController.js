@@ -17,14 +17,22 @@ const getShippingCost = require("../services/getShippingCostCached");
 const { trackJntShipment } = require("../services/jntService");
 const { createDokuCheckout } = require("../services/dokuService");
 const redis = require("../config/redis");
+const autoExpirePayment = require("../utils/expirePayment");
 const crypto = require("crypto");
 
 exports.getOrderSummary = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { addressId, selectedItemIds, buyNow: buyNowRaw } = req.body;
+    const { addressId, selectedItemIds } = req.body;
 
-    const buyNow = buyNowRaw ? JSON.parse(buyNowRaw) : null;
+    let buyNow = null;
+
+    if (req.body.buyNow) {
+      buyNow =
+        typeof req.body.buyNow === "string"
+          ? JSON.parse(req.body.buyNow)
+          : req.body.buyNow;
+    }
 
     const address = await Address.findByPk(addressId, {
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
@@ -79,6 +87,15 @@ exports.getOrderSummary = async (req, res) => {
       if (!cart || cart.CartItems.length === 0)
         return res.status(400).json({ message: "No selected items found" });
 
+      const subtotal = cart.CartItems.reduce(
+        (acc, item) => acc + parseFloat(item.Variant.price) * item.quantity,
+        0,
+      );
+
+      const totalWeight = cart.CartItems.reduce(
+        (acc, item) => acc + 0.1 * item.quantity,
+        0,
+      );
       items = cart.CartItems.map((item) => {
         const price = parseFloat(item.Variant.price);
         return {
@@ -137,6 +154,7 @@ exports.createOrder = async (req, res) => {
     const { addressId, selectedItemIds, buyNow: buyNowRaw } = req.body;
 
     const buyNow = buyNowRaw ? JSON.parse(buyNowRaw) : null;
+    const PAYMENT_DUE_MINUTES = 60;
 
     let selectedIds = null;
 
@@ -183,7 +201,7 @@ exports.createOrder = async (req, res) => {
             image_url: `/uploads/customs/${file.filename}`,
             processed_url: null,
           },
-          { transaction: t }
+          { transaction: t },
         );
 
         customImageRecords.push(image);
@@ -257,7 +275,7 @@ exports.createOrder = async (req, res) => {
 
       subtotal = items.reduce(
         (acc, item) => acc + item.price * item.quantity,
-        0
+        0,
       );
       totalWeight = items.reduce((acc, item) => acc + 0.1 * item.quantity, 0);
     }
@@ -282,7 +300,7 @@ exports.createOrder = async (req, res) => {
         status: "pending",
         requestId,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     for (const item of items) {
@@ -295,7 +313,7 @@ exports.createOrder = async (req, res) => {
           phoneTypeId: item.phoneTypeId,
           variantId: item.variantId,
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       if (item.customImageId.length > 0) {
@@ -306,17 +324,22 @@ exports.createOrder = async (req, res) => {
         await item.cartItemInstance.destroy({ transaction: t });
     }
 
+    const checkout = await createDokuCheckout(order, user, requestId);
+    const expiredAt = new Date(Date.now() + PAYMENT_DUE_MINUTES * 60 * 1000);
+
     const payment = await Payment.create(
       {
         orderId: order.id,
         payment_gateway: "DOKU",
+        transaction_id: checkout?.order?.invoice_number || null,
+        request_id: requestId,
+        payment_url: checkout?.response?.payment?.url || null,
         amount: totalPrice,
         status: "pending",
+        expired_at: expiredAt,
       },
-      { transaction: t }
+      { transaction: t },
     );
-
-    const checkout = await createDokuCheckout(order, user, requestId);
 
     await t.commit();
 
@@ -433,6 +456,10 @@ exports.getOrderById = async (req, res) => {
     });
 
     if (!order) return res.status(404).json({ message: "Order not found" });
+
+    if (order.Payment) {
+      await autoExpirePayment(order, order.Payment);
+    }
 
     await redis.setex(cacheKey, 20, JSON.stringify(order));
 
