@@ -125,7 +125,11 @@ module.exports = {
       const { quantity, phoneTypeId, variantId } = req.body;
 
       const item = await CartItem.findByPk(id, {
-        include: [{ model: Product, include: [PhoneType, Variant] }, Variant],
+        include: [
+          { model: Product, include: [PhoneType, Variant] },
+          Variant,
+          { model: Cart },
+        ],
       });
       if (!item) return res.status(404).json({ message: "Item not found" });
 
@@ -149,7 +153,7 @@ module.exports = {
 
       if (phoneTypeId) {
         const validPhoneType = item.Product.PhoneTypes.some(
-          (pt) => pt.id === Number(phoneTypeId)
+          (pt) => pt.id === Number(phoneTypeId),
         );
 
         if (!validPhoneType) {
@@ -172,8 +176,7 @@ module.exports = {
       item.price = item.Variant.price * quantity;
       await item.save();
 
-      await redis.del(`cart:${item.cartId}`);
-      await redis.del(`cart:${item.userId}`);
+      await redis.del(`cart:${item.Cart.userId}`);
       return res.json({ message: "Cart item updated", item });
     } catch (err) {
       console.error(err);
@@ -185,12 +188,14 @@ module.exports = {
     try {
       const { id } = req.params;
 
-      const item = await CartItem.findByPk(id);
+      const item = await CartItem.findByPk(id, {
+        include: [{ model: Cart }],
+      });
       if (!item) return res.status(404).json({ message: "Item not found" });
 
+      const userId = item.Cart.userId;
       await item.destroy();
-      await redis.del(`cart:${item.userId}`);
-      await redis.del(`cart:${item.cartId}`);
+      await redis.del(`cart:${userId}`);
       return res.json({ message: "Item removed from cart" });
     } catch (err) {
       console.error(err);

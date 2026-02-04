@@ -155,12 +155,23 @@ module.exports = {
         is_primary,
       } = req.body;
 
-      // kalau set primary, reset primary sebelumnya
-      if (is_primary) {
+      // hitung jumlah address user
+      const addressCount = await Address.count({
+        where: { userId: req.user.id },
+      });
+
+      let finalIsPrimary = false;
+
+      if (addressCount === 0) {
+        // address pertama → wajib primary
+        finalIsPrimary = true;
+      } else if (is_primary === true) {
+        // kalau set primary → reset yang lain
         await Address.update(
           { is_primary: false },
-          { where: { userId: req.user.id } }
+          { where: { userId: req.user.id } },
         );
+        finalIsPrimary = true;
       }
 
       const mapping = await JntAddressMapping.findOne({
@@ -318,7 +329,7 @@ module.exports = {
         if (!addr.is_primary) {
           await Address.update(
             { is_primary: false },
-            { where: { userId: req.user.id } }
+            { where: { userId: req.user.id } },
           );
           addr.is_primary = true;
         }
@@ -333,7 +344,15 @@ module.exports = {
       addr.district = district || addr.district;
       addr.postal_code = postal_code || addr.postal_code;
       addr.details = details || addr.details;
-      addr.is_primary = is_primary !== undefined ? is_primary : addr.is_primary;
+      if (is_primary === true && !addr.is_primary) {
+        await Address.update(
+          { is_primary: false },
+          { where: { userId: req.user.id } },
+        );
+        addr.is_primary = true;
+      } else if (is_primary === false) {
+        addr.is_primary = false;
+      }
 
       await addr.save();
 

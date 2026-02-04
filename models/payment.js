@@ -16,17 +16,20 @@ module.exports = (sequelize, DataTypes) => {
       orderId: DataTypes.INTEGER,
       payment_gateway: DataTypes.STRING,
       transaction_id: DataTypes.STRING,
+      request_id: DataTypes.STRING,
+      payment_url: DataTypes.TEXT,
       status: {
         type: DataTypes.ENUM("pending", "success", "failed", "expired"),
         allowNull: false,
         defaultValue: "pending",
       },
       amount: DataTypes.DECIMAL,
+      expired_at: DataTypes.DATE,
     },
     {
       sequelize,
       modelName: "Payment",
-    }
+    },
   );
   return Payment;
 };
