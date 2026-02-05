@@ -30,4 +30,6 @@ app.use("/api/images", imageRoutes);
 app.use("/api/jnt-address", jntAddressRoutes);
 app.use("/api/reference", referenceRoutes);
 
+app.get("/", (req, res) => res.send("Hello World!"));
+
 module.exports = app;
