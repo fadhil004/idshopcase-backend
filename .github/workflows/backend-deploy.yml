@@ -25,6 +25,7 @@ jobs:
           rsync -avz --delete \
             --exclude ".env" \
             --exclude "config/config.json" \
+            --exclude "uploads" \
             -e "ssh -i ~/.ssh/id_ed25519" ./ \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/var/www/idshopcase/backend/
 
