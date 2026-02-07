@@ -2,7 +2,7 @@ name: Backend Deployment
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   deploy:
@@ -12,16 +12,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Add server to known_hosts
+      - name: Prepare SSH
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts
-
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          echo "${{ secrets.SERVER_SSH_KEY }}" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> "$HOME/.ssh/known_hosts"
 
       - name: Upload backend to server via rsync
         run: |
@@ -30,7 +27,6 @@ jobs:
             --exclude "config/config.json" \
             -e "ssh -i ~/.ssh/id_ed25519" ./ \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/var/www/idshopcase/backend/
-
 
       - name: SSH & Deploy
         uses: appleboy/ssh-action@v0.1.8
