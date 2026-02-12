@@ -45,6 +45,12 @@ exports.handleDokuCallback = async (req, res) => {
       currentOrder.status = "cancelled";
       await payment.save();
       await currentOrder.save();
+
+      await redis.del(`order:${orderId}`);
+      await redis.del(`order:summary:${orderId}`);
+      await redis.del(`orders:user:${currentOrder.userId}`);
+      await redis.del("orders:all");
+
       return res.status(200).json({ message: "Payment failed" });
     }
 
@@ -73,49 +79,36 @@ exports.handleDokuCallback = async (req, res) => {
           await variant.save({ transaction: t });
         }
 
-        const address = await Address.findByPk(currentOrder.addressId, {
-          include: [{ model: JntAddressMapping, as: "JntMapping" }],
-          transaction: t,
-        });
-
-        const jntRes = await createJntOrder(currentOrder, address, orderItems);
-
-        if (jntRes.success) {
-          currentOrder.tracking_number = jntRes.waybill;
-
-          currentOrder.status = "shipped";
-        } else {
-          console.error("Failed to create JNT waybill:", jntRes.reason);
-        }
-
         await payment.save({ transaction: t });
         await currentOrder.save({ transaction: t });
 
         await t.commit();
+
+        await redis.del(`order:${orderId}`);
+        await redis.del(`order:summary:${orderId}`);
+        await redis.del(`orders:user:${currentOrder.userId}`);
+        await redis.del("orders:all");
+
+        for (const item of orderItems) {
+          await redis.del(`product:${item.productId}`);
+        }
+        await redis.del("products:all");
+
+        console.log("Callback SUCCESS processed for order:", orderId);
+
+        return res.status(200).json({
+          message: "Callback processed successfully",
+          orderId,
+        });
       } catch (err) {
-        console.error("Transaction rollback :", err);
         await t.rollback();
-        return res
-          .status(500)
-          .json({ message: "Processing failed", error: err.message });
+        return res.status(500).json({
+          message: "Processing failed",
+          error: err.message,
+        });
       }
-      await redis.del(`order:${orderId}`);
-      await redis.del("orders:all");
-      await redis.del(`orders:user:${currentOrder.userId}`);
-
-      for (const item of await OrderItem.findAll({ where: { orderId } })) {
-        await redis.del(`product:${item.productId}`);
-      }
-      await redis.del("products:all");
-
-      console.log("Callback SUCCESS processed for order:", orderId);
-
-      return res.status(200).json({
-        message: "Callback processed successfully",
-        orderId,
-        tracking_number: currentOrder.tracking_number,
-      });
     }
+
     return res.status(200).json({ message: "Unhandled status" });
   } catch (error) {
     console.error("Callback processing error:", error);
