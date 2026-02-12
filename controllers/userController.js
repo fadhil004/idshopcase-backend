@@ -163,10 +163,8 @@ module.exports = {
       let finalIsPrimary = false;
 
       if (addressCount === 0) {
-        // address pertama → wajib primary
         finalIsPrimary = true;
       } else if (is_primary === true) {
-        // kalau set primary → reset yang lain
         await Address.update(
           { is_primary: false },
           { where: { userId: req.user.id } },
@@ -175,11 +173,7 @@ module.exports = {
       }
 
       const mapping = await JntAddressMapping.findOne({
-        where: {
-          province,
-          city,
-          district,
-        },
+        where: { province, city, district },
       });
 
       if (!mapping) {
@@ -197,14 +191,17 @@ module.exports = {
         district,
         postal_code,
         details,
-        is_primary: !!is_primary,
+        is_primary: finalIsPrimary,
         jntAddressMappingId: mapping.id,
       });
 
       await redis.del(`user:addresses:${req.user.id}`);
       await redis.del(`user:profile:${req.user.id}`);
 
-      return res.status(201).json({ message: "Address added", newAddress });
+      return res.status(201).json({
+        message: "Address added",
+        newAddress,
+      });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
