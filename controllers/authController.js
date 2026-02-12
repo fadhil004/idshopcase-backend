@@ -12,8 +12,16 @@ module.exports = {
     try {
       const { name, email, phone, password } = req.body;
       const existEmail = await User.findOne({ where: { email } });
-      if (existEmail)
+      if (existEmail) {
+        if (!existEmail.is_verified) {
+          return res.status(400).json({
+            message: "Account not verified. Please verify or resend OTP.",
+            need_verify: true,
+          });
+        }
+
         return res.status(400).json({ message: "Email already used" });
+      }
 
       const existPhone = await User.findOne({ where: { phone } });
       if (existPhone)
@@ -98,7 +106,7 @@ module.exports = {
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
         process.env.JWT_SECRET,
-        { expiresIn: "30m" }
+        { expiresIn: "30m" },
       );
 
       return res.json({ message: "Login success", token });
@@ -181,6 +189,44 @@ module.exports = {
       await user.save();
 
       res.json({ message: "Password successfully reset, please login" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server Error" });
+    }
+  },
+  resendOtp: async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      const user = await User.findOne({ where: { email } });
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (user.is_verified)
+        return res.status(400).json({ message: "Account already verified" });
+
+      if (user.otp_expire && new Date(user.otp_expire).getTime() > Date.now()) {
+        return res.status(429).json({
+          message: "OTP already sent. Please wait before requesting again.",
+        });
+      }
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpire = new Date(Date.now() + 10 * 60 * 1000);
+
+      user.otp_code = otp;
+      user.otp_expire = otpExpire;
+      await user.save();
+
+      const message = `
+      <h2>IDSHOPCASE Account Verification</h2>
+      <p>Hello <b>${user.name}</b>,</p>
+      <p>Your new OTP code (valid for 10 minutes):</p>
+      <h1 style="letter-spacing: 3px;">${otp}</h1>
+    `;
+
+      await sendEmail(user.email, "Resend OTP Verification", message);
+
+      res.json({ message: "OTP successfully resent" });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server Error" });
