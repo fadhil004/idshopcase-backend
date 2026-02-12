@@ -55,16 +55,17 @@ exports.getOrderSummary = async (req, res) => {
       }
 
       const price = parseFloat(variant.price);
+      const itemSubtotal = price * buyNow.quantity;
 
       items.push({
         id: null,
         quantity: buyNow.quantity,
         price,
-        subtotal: price * buyNow.quantity,
+        subtotal: itemSubtotal,
         variantId: variant.id,
       });
 
-      subtotal = price * buyNow.quantity;
+      subtotal = itemSubtotal;
       totalWeight = 0.1 * buyNow.quantity;
     } else {
       if (!selectedItemIds || selectedItemIds.length === 0) {
@@ -87,22 +88,14 @@ exports.getOrderSummary = async (req, res) => {
       if (!cart || cart.CartItems.length === 0)
         return res.status(400).json({ message: "No selected items found" });
 
-      const subtotal = cart.CartItems.reduce(
-        (acc, item) => acc + parseFloat(item.Variant.price) * item.quantity,
-        0,
-      );
-
-      const totalWeight = cart.CartItems.reduce(
-        (acc, item) => acc + 0.1 * item.quantity,
-        0,
-      );
       items = cart.CartItems.map((item) => {
         const price = parseFloat(item.Variant.price);
+        const itemSubtotal = price * item.quantity;
         return {
           id: item.id,
           quantity: item.quantity,
           price,
-          subtotal: item.quantity * price,
+          subtotal: itemSubtotal,
           variantId: item.variantId,
         };
       });
@@ -304,12 +297,15 @@ exports.createOrder = async (req, res) => {
     );
 
     for (const item of items) {
+      const totalItemPrice = item.price * item.quantity;
+
       const orderItem = await OrderItem.create(
         {
           orderId: order.id,
           productId: item.productId,
           quantity: item.quantity,
           price: item.price,
+          total_price: totalItemPrice,
           phoneTypeId: item.phoneTypeId,
           variantId: item.variantId,
         },
