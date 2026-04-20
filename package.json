@@ -30,7 +30,9 @@
     "pg-hstore": "^2.3.4",
     "redis": "^5.10.0",
     "sequelize": "^6.37.7",
-    "sequelize-cli": "^6.6.3"
+    "sequelize-cli": "^6.6.3",
+    "helmet": "^8.0.0",
+    "express-rate-limit": "^7.4.1"
   },
   "devDependencies": {
     "jest": "^30.2.0",

@@ -321,16 +321,14 @@ module.exports = {
         addr.jntAddressMappingId = mapping.id;
       }
 
-      if (is_primary === true) {
-        // kalau alamat ini SUDAH primary, tidak perlu reset
-        if (!addr.is_primary) {
-          await Address.update(
-            { is_primary: false },
-            { where: { userId: req.user.id } },
-          );
-          addr.is_primary = true;
-        }
-      } else if (is_primary === false) {
+      // Update is_primary — satu kali, tidak duplikat
+      if (is_primary === true && !addr.is_primary) {
+        await Address.update(
+          { is_primary: false },
+          { where: { userId: req.user.id } },
+        );
+        addr.is_primary = true;
+      } else if (is_primary === false && addr.is_primary) {
         addr.is_primary = false;
       }
 
@@ -341,15 +339,6 @@ module.exports = {
       addr.district = district || addr.district;
       addr.postal_code = postal_code || addr.postal_code;
       addr.details = details || addr.details;
-      if (is_primary === true && !addr.is_primary) {
-        await Address.update(
-          { is_primary: false },
-          { where: { userId: req.user.id } },
-        );
-        addr.is_primary = true;
-      } else if (is_primary === false) {
-        addr.is_primary = false;
-      }
 
       await addr.save();
 

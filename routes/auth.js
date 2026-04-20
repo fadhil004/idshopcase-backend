@@ -8,12 +8,17 @@ const {
   resetPassword,
   resendOtp,
 } = require("../controllers/authController");
+const {
+  loginLimiter,
+  registerLimiter,
+  emailLimiter,
+} = require("../middlewares/rateLimiter");
 
-router.post("/register", register);
-router.post("/verify-otp", verifyOtp);
-router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
+router.post("/register", registerLimiter, register);
+router.post("/verify-otp", emailLimiter, verifyOtp);
+router.post("/login", loginLimiter, login);
+router.post("/forgot-password", emailLimiter, forgotPassword);
 router.post("/reset-password/:token", resetPassword);
-router.post("/resend-otp", resendOtp);
+router.post("/resend-otp", emailLimiter, resendOtp);
 
 module.exports = router;

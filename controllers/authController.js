@@ -27,7 +27,7 @@ module.exports = {
       if (existPhone)
         return res.status(400).json({ message: "Phone already used" });
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otp = crypto.randomInt(100000, 1000000).toString();
       const otpExpire = new Date(Date.now() + 10 * 60 * 1000);
 
       const hashed = await hashPassword(password);
@@ -210,7 +210,7 @@ module.exports = {
         });
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otp = crypto.randomInt(100000, 1000000).toString();
       const otpExpire = new Date(Date.now() + 10 * 60 * 1000);
 
       user.otp_code = otp;

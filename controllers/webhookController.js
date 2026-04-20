@@ -1,20 +1,79 @@
-const {
-  Payment,
-  Order,
-  OrderItem,
-  Variant,
-  Address,
-  JntAddressMapping,
-  sequelize,
-} = require("../models");
+const { Payment, Order, OrderItem, Variant, sequelize } = require("../models");
 const redis = require("../config/redis");
-const { createJntOrder } = require("../services/jntService");
+const crypto = require("crypto");
+
+/**
+ * Verifikasi signature DOKU pada callback.
+ * DOKU mengirim header "Signature" dengan format "HMACSHA256=<base64>"
+ * dihitung dari: Client-Id + Request-Id + Request-Timestamp + Request-Target + Digest(body)
+ */
+function verifyDokuSignature(req) {
+  const clientId = process.env.DOKU_CLIENT_ID;
+  const secretKey = process.env.DOKU_SECRET_KEY;
+
+  // Skip verifikasi di development jika env belum diset
+  if (!clientId || !secretKey) {
+    console.warn(
+      "[WEBHOOK] DOKU_CLIENT_ID/DOKU_SECRET_KEY tidak diset — skip verifikasi (dev only)",
+    );
+    return true;
+  }
+
+  const incomingSignature = req.headers["signature"];
+  const requestId = req.headers["request-id"];
+  const timestamp = req.headers["request-timestamp"];
+  const requestTarget = req.path;
+
+  if (!incomingSignature || !requestId || !timestamp) {
+    console.error("[WEBHOOK] Header DOKU tidak lengkap:", {
+      signature: !!incomingSignature,
+      requestId: !!requestId,
+      timestamp: !!timestamp,
+    });
+    return false;
+  }
+
+  const digest = crypto
+    .createHash("sha256")
+    .update(JSON.stringify(req.body))
+    .digest("base64");
+
+  const signatureBase =
+    `Client-Id:${clientId}\n` +
+    `Request-Id:${requestId}\n` +
+    `Request-Timestamp:${timestamp}\n` +
+    `Request-Target:${requestTarget}\n` +
+    `Digest:${digest}`;
+
+  const expectedSignature =
+    "HMACSHA256=" +
+    crypto
+      .createHmac("sha256", secretKey)
+      .update(signatureBase)
+      .digest("base64");
+
+  // timingSafeEqual mencegah timing attack
+  try {
+    const a = Buffer.from(incomingSignature);
+    const b = Buffer.from(expectedSignature);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
 
 exports.handleDokuCallback = async (req, res) => {
   console.log("========== DOKU CALLBACK RECEIVED ==========");
   console.log("Headers:", JSON.stringify(req.headers, null, 2));
   console.log("Body:", JSON.stringify(req.body, null, 2));
   console.log("============================================");
+
+  // Verifikasi signature SEBELUM proses apapun
+  if (!verifyDokuSignature(req)) {
+    console.error("[WEBHOOK] Signature DOKU tidak valid — request ditolak");
+    return res.status(401).json({ message: "Invalid signature" });
+  }
 
   try {
     const { order, transaction } = req.body;
@@ -46,10 +105,11 @@ exports.handleDokuCallback = async (req, res) => {
       await payment.save();
       await currentOrder.save();
 
-      await redis.del(`order:${orderId}`);
-      await redis.del(`order:summary:${orderId}`);
+      await redis.del(`order:user:${currentOrder.userId}:${orderId}`);
       await redis.del(`orders:user:${currentOrder.userId}`);
-      await redis.del("orders:all");
+      await redis.del(`admin:order:${orderId}`);
+      await redis.del(`admin:orders:all`);
+      await redis.del(`admin:orders:pending`);
 
       return res.status(200).json({ message: "Payment failed" });
     }
@@ -66,17 +126,23 @@ exports.handleDokuCallback = async (req, res) => {
           transaction: t,
         });
 
-        const variantIds = orderItems.map((i) => i.variantId);
+        // Atomic decrement stok — hindari race condition
+        for (const item of orderItems) {
+          const updated = await Variant.decrement("stock", {
+            by: item.quantity,
+            where: {
+              id: item.variantId,
+              stock: { [require("sequelize").Op.gte]: item.quantity },
+            },
+            transaction: t,
+          });
 
-        const variants = await Variant.findAll({
-          where: { id: variantIds },
-          transaction: t,
-        });
-
-        for (const variant of variants) {
-          const item = orderItems.find((i) => i.variantId === variant.id);
-          variant.stock = Math.max(variant.stock - item.quantity, 0);
-          await variant.save({ transaction: t });
+          // Jika tidak ada baris yang diupdate, stok tidak cukup
+          if (!updated[0][1]) {
+            console.warn(
+              `[WEBHOOK] Stok variant ${item.variantId} tidak cukup untuk order ${orderId}`,
+            );
+          }
         }
 
         await payment.save({ transaction: t });
@@ -84,10 +150,13 @@ exports.handleDokuCallback = async (req, res) => {
 
         await t.commit();
 
-        await redis.del(`order:${orderId}`);
-        await redis.del(`order:summary:${orderId}`);
+        // Invalidate semua cache yang relevan
+        await redis.del(`order:user:${currentOrder.userId}:${orderId}`);
         await redis.del(`orders:user:${currentOrder.userId}`);
-        await redis.del("orders:all");
+        await redis.del(`admin:order:${orderId}`);
+        await redis.del(`admin:orders:all`);
+        await redis.del(`admin:orders:pending`);
+        await redis.del(`admin:orders:paid`);
 
         for (const item of orderItems) {
           await redis.del(`product:${item.productId}`);
@@ -102,9 +171,11 @@ exports.handleDokuCallback = async (req, res) => {
         });
       } catch (err) {
         await t.rollback();
+        console.error("[WEBHOOK] Transaction error:", err);
         return res.status(500).json({
           message: "Processing failed",
-          error: err.message,
+          error:
+            process.env.NODE_ENV !== "production" ? err.message : undefined,
         });
       }
     }
@@ -114,7 +185,7 @@ exports.handleDokuCallback = async (req, res) => {
     console.error("Callback processing error:", error);
     return res.status(500).json({
       message: "Callback processing failed",
-      error: error.message,
+      error: process.env.NODE_ENV !== "production" ? error.message : undefined,
     });
   }
 };
