@@ -34,7 +34,9 @@ exports.getOrderSummary = async (req, res) => {
           : req.body.buyNow;
     }
 
-    const address = await Address.findByPk(addressId, {
+    // ensure address belongs to the requesting user
+    const address = await Address.findOne({
+      where: { id: addressId, userId },
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
     });
     if (!address) return res.status(404).json({ message: "Address not found" });
@@ -54,19 +56,27 @@ exports.getOrderSummary = async (req, res) => {
         return res.status(404).json({ message: "Variant not found" });
       }
 
+      // enforce a sensible upper bound on quantity from client
+      const qty = parseInt(buyNow.quantity, 10);
+      if (!qty || qty < 1 || qty > 99) {
+        return res
+          .status(400)
+          .json({ message: "Quantity must be between 1 and 99" });
+      }
+
       const price = parseFloat(variant.price);
-      const itemSubtotal = price * buyNow.quantity;
+      const itemSubtotal = price * qty;
 
       items.push({
         id: null,
-        quantity: buyNow.quantity,
+        quantity: qty,
         price,
         subtotal: itemSubtotal,
         variantId: variant.id,
       });
 
       subtotal = itemSubtotal;
-      totalWeight = 0.1 * buyNow.quantity;
+      totalWeight = 0.1 * qty;
     } else {
       if (!selectedItemIds || selectedItemIds.length === 0) {
         return res
@@ -176,7 +186,9 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const address = await Address.findByPk(addressId, {
+    // ensure address belongs to the requesting user
+    const address = await Address.findOne({
+      where: { id: addressId, userId },
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
     });
 
@@ -349,7 +361,12 @@ exports.createOrder = async (req, res) => {
     });
   } catch (err) {
     if (!t.finished) await t.rollback();
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({
+      message:
+        process.env.NODE_ENV !== "production"
+          ? err.message
+          : "Internal server error",
+    });
   }
 };
 

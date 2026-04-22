@@ -43,7 +43,12 @@ module.exports = {
       return res.json(cart);
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({
+        message:
+          process.env.NODE_ENV !== "production"
+            ? err.message
+            : "Internal server error",
+      });
     }
   },
 
@@ -115,7 +120,12 @@ module.exports = {
       return res.status(201).json({ message: "Item added", item: newItem });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({
+        message:
+          process.env.NODE_ENV !== "production"
+            ? err.message
+            : "Internal server error",
+      });
     }
   },
 
@@ -132,6 +142,11 @@ module.exports = {
         ],
       });
       if (!item) return res.status(404).json({ message: "Item not found" });
+
+      // verify the cart item belongs to the authenticated user
+      if (item.Cart.userId !== req.user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
 
       let selectedVariant = item.Variant;
 
@@ -180,7 +195,12 @@ module.exports = {
       return res.json({ message: "Cart item updated", item });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({
+        message:
+          process.env.NODE_ENV !== "production"
+            ? err.message
+            : "Internal server error",
+      });
     }
   },
 
@@ -193,13 +213,23 @@ module.exports = {
       });
       if (!item) return res.status(404).json({ message: "Item not found" });
 
+      // verify the cart item belongs to the authenticated user
+      if (item.Cart.userId !== req.user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
       const userId = item.Cart.userId;
       await item.destroy();
       await redis.del(`cart:${userId}`);
       return res.json({ message: "Item removed from cart" });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({
+        message:
+          process.env.NODE_ENV !== "production"
+            ? err.message
+            : "Internal server error",
+      });
     }
   },
 };

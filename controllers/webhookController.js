@@ -11,12 +11,12 @@ function verifyDokuSignature(req) {
   const clientId = process.env.DOKU_CLIENT_ID;
   const secretKey = process.env.DOKU_SECRET_KEY;
 
-  // Skip verifikasi di development jika env belum diset
+  // Fail closed — never skip signature verification
   if (!clientId || !secretKey) {
-    console.warn(
-      "[WEBHOOK] DOKU_CLIENT_ID/DOKU_SECRET_KEY tidak diset — skip verifikasi (dev only)",
+    console.error(
+      "[WEBHOOK] DOKU_CLIENT_ID/DOKU_SECRET_KEY not set — rejecting all callbacks",
     );
-    return true;
+    return false;
   }
 
   const incomingSignature = req.headers["signature"];
@@ -64,10 +64,7 @@ function verifyDokuSignature(req) {
 }
 
 exports.handleDokuCallback = async (req, res) => {
-  console.log("========== DOKU CALLBACK RECEIVED ==========");
-  console.log("Headers:", JSON.stringify(req.headers, null, 2));
-  console.log("Body:", JSON.stringify(req.body, null, 2));
-  console.log("============================================");
+  console.log("[WEBHOOK] DOKU callback received:", req.method, req.path);
 
   // Verifikasi signature SEBELUM proses apapun
   if (!verifyDokuSignature(req)) {

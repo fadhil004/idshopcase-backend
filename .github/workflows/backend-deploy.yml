@@ -43,6 +43,6 @@ jobs:
 
             npx sequelize-cli db:migrate
 
-            # Restart PM2
-            pm2 restart idshopcase-backend || pm2 start server.js --name idshopcase-backend
+            # Restart PM2 with NODE_ENV explicitly set to production
+            pm2 restart idshopcase-backend --update-env || pm2 start server.js --name idshopcase-backend --env production
             pm2 save

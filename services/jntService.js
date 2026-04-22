@@ -24,7 +24,7 @@ const getShippingCost = async ({ weight, sendSiteCode, destAreaCode }) => {
       crypto
         .createHash("md5")
         .update(data_param + key)
-        .digest("hex")
+        .digest("hex"),
     ).toString("base64");
 
     const body = new URLSearchParams({
@@ -32,34 +32,23 @@ const getShippingCost = async ({ weight, sendSiteCode, destAreaCode }) => {
       sign: signHex,
     }).toString();
 
-    const headers = {
-      "Content-Type": "application/x-www-form-urlencoded",
-    };
-    const response = await axios.post(apiUrl, body, { headers });
+    const response = await axios.post(apiUrl, body, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
 
     const result = response.data;
 
-    console.log("=== JNT Shipping Cost Request ===");
-    console.log("API URL:", apiUrl);
-    console.log("Request Data:", dataJson);
-    console.log("Request Body:", body);
-
-    console.log("=== JNT Shipping Cost Response ===");
-    console.log(result);
+    // log only non-sensitive summary info
     if (result.is_success === "true") {
       const content = JSON.parse(result.content);
       const cost = parseInt(content[0].cost);
       return { courier: "JNT", cost, name: content[0].name };
     } else {
-      console.log(sign);
-      console.log(signHex);
-      console.log(data_param);
-      console.log(result);
-      console.error("J&T Tariff API Error:", result.message);
+      console.error("[JNT] Tariff API error:", result.message);
       return { courier: "JNT", cost: 0, error: result.message };
     }
   } catch (err) {
-    console.error("J&T Shipping Cost Error:", err.message);
+    console.error("[JNT] Shipping cost error:", err.message);
     return { courier: "JNT", cost: 0, error: err.message };
   }
 };
@@ -72,18 +61,16 @@ const createJntOrder = async (order, address, orderItems) => {
     const apiUrl = process.env.JNT_ORDER_URL;
 
     const now = new Date();
-    const formattedDate = now.toISOString().replace("T", " ").substring(0, 19); // YYYY-MM-DD hh:mm:ss
+    const formattedDate = now.toISOString().replace("T", " ").substring(0, 19);
 
     const totalQty = orderItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalWeight = orderItems.reduce(
-      (sum, item) => sum + 0.1 * item.quantity, // default 0.1kg/item
-      0
+      (sum, item) => sum + 0.1 * item.quantity,
+      0,
     );
 
     const mapping = address.JntMapping;
-    if (!mapping) {
-      throw new Error("Missing J&T mapping for this address");
-    }
+    if (!mapping) throw new Error("Missing J&T mapping for this address");
 
     const data = {
       username,
@@ -91,27 +78,26 @@ const createJntOrder = async (order, address, orderItems) => {
       orderid: `IDSHOP-${order.id}`,
       shipper_name: "IDSHOPCASE",
       shipper_contact: "IDSHOPCASE",
-      shipper_phone: "+6281278820864",
-      shipper_addr:
-        "Ciomas Hills Cluster Malabar blok A31/3 Sukamakmur, Kecamatan Ciomas, Kabupaten Bogor, Provinsi Jawa Barat",
-      origin_code: "CIB",
+      shipper_phone: process.env.SHIPPER_PHONE || "",
+      shipper_addr: process.env.SHIPPER_ADDRESS || "",
+      origin_code: process.env.JNT_ORIGIN_CODE || "CIB",
       receiver_name: address.recipient_name,
       receiver_phone: address.phone,
       receiver_addr: `${address.details}, ${address.district}, ${address.city}, ${address.province}`,
       receiver_zip: address.postal_code || "00000",
-      destination_code: mapping.jnt_city_code, // sesuaikan kalau kamu punya mapping code
-      receiver_area: mapping.jnt_area_code, // sesuaikan juga
+      destination_code: mapping.jnt_city_code,
+      receiver_area: mapping.jnt_area_code,
       qty: totalQty,
       weight: totalWeight,
       goodsdesc: "Custom Phone Case & Accessories",
-      servicetype: 1, // 1 = Pickup
+      servicetype: 1,
       insurance: "",
       orderdate: formattedDate,
       item_name: "Phone Case",
       cod: "",
       sendstarttime: formattedDate,
       sendendtime: formattedDate,
-      expresstype: "1", // EZ
+      expresstype: "1",
       goodsvalue: parseInt(order.total_price),
     };
 
@@ -120,7 +106,7 @@ const createJntOrder = async (order, address, orderItems) => {
       crypto
         .createHash("md5")
         .update(data_json + key)
-        .digest("hex")
+        .digest("hex"),
     ).toString("base64");
 
     const body = new URLSearchParams({
@@ -128,38 +114,33 @@ const createJntOrder = async (order, address, orderItems) => {
       data_sign: sign,
     }).toString();
 
-    const headers = {
-      "Content-Type": "application/x-www-form-urlencoded",
-    };
-
-    const response = await axios.post(apiUrl, body, { headers });
+    const response = await axios.post(apiUrl, body, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
     const result = response.data;
 
-    // Log the request
-    console.log("=== JNT Order Creation Request ===");
-    console.log("API URL:", apiUrl);
-    console.log("Request Data:", data_json);
-    console.log("Request Body:", body);
-
-    // Log the response
-    console.log("=== JNT Order Creation Response ===");
-    console.log(result);
+    // log only order ID and success status — never log credentials or full bodies
     if (result.success && result.detail && result.detail[0].awb_no) {
-      console.log("J&T Order Success:", result.detail[0]);
+      console.log(
+        `[JNT] Order ${order.id} created, AWB: ${result.detail[0].awb_no}`,
+      );
       return {
         success: true,
         waybill: result.detail[0].awb_no,
         etd: result.detail[0].etd,
       };
     } else {
-      console.error("J&T Order Error:", result.detail?.[0] || result);
+      console.error(
+        `[JNT] Order ${order.id} failed:`,
+        result.detail?.[0]?.reason || "Unknown error",
+      );
       return {
         success: false,
         reason: result.detail?.[0]?.reason || "Unknown error",
       };
     }
   } catch (err) {
-    console.error("J&T Order API Error:", err.message);
+    console.error("[JNT] Order API error:", err.message);
     return { success: false, reason: err.message };
   }
 };
@@ -172,43 +153,34 @@ const trackJntShipment = async (awb) => {
     const password = process.env.JNT_PW_TRACK;
 
     const cacheKey = `track:${awb}`;
-
     const cached = await redis.get(cacheKey);
     if (cached) {
-      console.log("Using cached tracking result");
       const parsed = JSON.parse(cached);
-
       await checkAndUpdateDelivered(parsed, awb);
-
       return parsed;
     }
 
     const auth = Buffer.from(`${username}:${password}`).toString("base64");
-
-    const requestBody = {
-      awb,
-      eccompanyid,
-    };
-
-    const response = await axios.post(url, JSON.stringify(requestBody), {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${auth}`,
+    const response = await axios.post(
+      url,
+      JSON.stringify({ awb, eccompanyid }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${auth}`,
+        },
       },
-    });
-
-    console.log("=== JNT TRACK RESPONSE ===");
-    console.log(response.data);
+    );
 
     const result = response.data;
-
     await redis.setex(cacheKey, 600, JSON.stringify(result));
-
     await checkAndUpdateDelivered(result, awb);
-
     return result;
   } catch (error) {
-    console.error("JNT Tracking Error:", error.response?.data || error.message);
+    console.error(
+      "[JNT] Tracking error:",
+      error.response?.data?.error_message || error.message,
+    );
     return {
       error: true,
       message:
@@ -221,24 +193,19 @@ const trackJntShipment = async (awb) => {
 const checkAndUpdateDelivered = async (trackingData, awb) => {
   try {
     if (!trackingData || !Array.isArray(trackingData.history)) return;
-
     const latest = trackingData.history[trackingData.history.length - 1];
-
     if (!latest) return;
 
     if (String(latest.status_code) === "200") {
-      console.log(`AWB ${awb} sudah delivered`);
-
       const order = await Order.findOne({ where: { tracking_number: awb } });
-
       if (order && order.status !== "delivered") {
         order.status = "delivered";
         await order.save();
-        console.log(`Order ${order.id} updated to DELIVERED`);
+        console.log(`[JNT] Order ${order.id} marked as delivered`);
       }
     }
   } catch (err) {
-    console.error("Failed to update delivered status:", err.message);
+    console.error("[JNT] Failed to update delivered status:", err.message);
   }
 };
 

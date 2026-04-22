@@ -28,6 +28,8 @@ module.exports = {
         phone,
         password: hashedPassword,
         role: role || "customer",
+        // admin-created users are pre-verified — they don't go through OTP flow
+        is_verified: true,
       });
 
       const {
@@ -46,7 +48,14 @@ module.exports = {
       });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -70,7 +79,14 @@ module.exports = {
 
       return res.json(user);
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -115,7 +131,14 @@ module.exports = {
         },
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -138,7 +161,14 @@ module.exports = {
 
       return res.json({ message: "Password updated" });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -203,7 +233,14 @@ module.exports = {
         newAddress,
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -238,7 +275,14 @@ module.exports = {
 
       return res.json({ addresses });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -274,7 +318,14 @@ module.exports = {
 
       return res.json({ address });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -352,7 +403,14 @@ module.exports = {
         mapping: mapping ? mapping : "Mapping unchanged",
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -390,7 +448,14 @@ module.exports = {
 
       return res.json({ message: "Address deleted" });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -412,7 +477,14 @@ module.exports = {
 
       res.json(users);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -434,7 +506,14 @@ module.exports = {
 
       res.json(user);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -456,7 +535,14 @@ module.exports = {
 
       res.json({ message: "User updated by admin", user });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -476,7 +562,14 @@ module.exports = {
 
       res.json({ message: "User deleted" });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 };

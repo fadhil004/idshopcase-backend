@@ -7,45 +7,47 @@ const { uploadProduct, uploadCustoms } = require("../middlewares/upload");
 
 router.get("/", productController.getProducts);
 router.get("/:id", productController.getProductById);
+
+// authenticate before upload middleware to prevent unauthenticated file writes
 router.post(
   "/custom/upload",
   authenticate,
   uploadCustoms.array("images", 12),
-  productController.uploadCustomImage
+  productController.uploadCustomImage,
 );
 
-// Admin manage
+// Admin manage — auth + authz always run BEFORE multer
 router.post(
   "/",
-  uploadProduct.array("images", 5),
   authenticate,
   authorizeAdmin,
-  adminProductController.createProduct
+  uploadProduct.array("images", 5),
+  adminProductController.createProduct,
 );
 router.get(
   "/custom/:id/download",
   authenticate,
   authorizeAdmin,
-  adminProductController.downloadCustomImage
+  adminProductController.downloadCustomImage,
 );
 router.put(
   "/:id",
-  uploadProduct.array("images", 5),
   authenticate,
   authorizeAdmin,
-  adminProductController.updateProduct
+  uploadProduct.array("images", 5),
+  adminProductController.updateProduct,
 );
 router.delete(
   "/images/:id",
   authenticate,
   authorizeAdmin,
-  adminProductController.deleteProductImage
+  adminProductController.deleteProductImage,
 );
 router.delete(
   "/:id",
   authenticate,
   authorizeAdmin,
-  adminProductController.deleteProduct
+  adminProductController.deleteProduct,
 );
 
 module.exports = router;

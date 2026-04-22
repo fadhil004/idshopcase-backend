@@ -15,11 +15,12 @@ const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 router.get("/admin/", authenticate, authorizeAdmin, getAllOrdersByAdmin);
 router.get("/admin/:id", authenticate, authorizeAdmin, getOrderByIdAdmin);
 
+// authenticate before upload so unauthenticated users cannot write files
 router.post(
   "/",
   authenticate,
   uploadCustoms.array("custom_images", 12),
-  createOrder
+  createOrder,
 );
 router.get("/", authenticate, getOrders);
 router.get("/:id", authenticate, getOrderById);

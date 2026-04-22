@@ -13,12 +13,14 @@ const {
   registerLimiter,
   emailLimiter,
 } = require("../middlewares/rateLimiter");
+const { validate, schemas } = require("../middlewares/validate");
 
-router.post("/register", registerLimiter, register);
-router.post("/verify-otp", emailLimiter, verifyOtp);
-router.post("/login", loginLimiter, login);
-router.post("/forgot-password", emailLimiter, forgotPassword);
-router.post("/reset-password/:token", resetPassword);
-router.post("/resend-otp", emailLimiter, resendOtp);
+router.post("/register", registerLimiter, validate(schemas.register), register);
+router.post("/verify-otp", emailLimiter, validate(schemas.verifyOtp), verifyOtp);
+router.post("/login", loginLimiter, validate(schemas.login), login);
+router.post("/forgot-password", emailLimiter, validate(schemas.forgotPassword), forgotPassword);
+// L1 FIX: rate-limit reset-password to prevent token brute-force
+router.post("/reset-password/:token", emailLimiter, validate(schemas.resetPassword), resetPassword);
+router.post("/resend-otp", emailLimiter, validate(schemas.resendOtp), resendOtp);
 
 module.exports = router;

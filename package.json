@@ -21,7 +21,10 @@
     "csv-parser": "^3.2.0",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.4.1",
     "form-data": "^4.0.4",
+    "helmet": "^8.0.0",
+    "joi": "^18.1.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
@@ -30,9 +33,7 @@
     "pg-hstore": "^2.3.4",
     "redis": "^5.10.0",
     "sequelize": "^6.37.7",
-    "sequelize-cli": "^6.6.3",
-    "helmet": "^8.0.0",
-    "express-rate-limit": "^7.4.1"
+    "sequelize-cli": "^6.6.3"
   },
   "devDependencies": {
     "jest": "^30.2.0",
