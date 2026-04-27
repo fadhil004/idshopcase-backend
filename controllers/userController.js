@@ -1,6 +1,7 @@
 const { User, Address, JntAddressMapping } = require("../models");
 
 const { hashPassword, comparePassword } = require("../utils/hash");
+const { blacklistToken } = require("../middlewares/auth");
 const fs = require("fs");
 const path = require("path");
 const redis = require("../config/redis");
@@ -28,6 +29,8 @@ module.exports = {
         phone,
         password: hashedPassword,
         role: role || "customer",
+        // admin-created users are pre-verified — they don't go through OTP flow
+        is_verified: true,
       });
 
       const {
@@ -46,7 +49,14 @@ module.exports = {
       });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -70,7 +80,14 @@ module.exports = {
 
       return res.json(user);
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -115,7 +132,14 @@ module.exports = {
         },
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -133,12 +157,22 @@ module.exports = {
       user.password = await hashPassword(newPassword);
       await user.save();
 
+      // Blacklist token saat ini — user harus login ulang dengan password baru
+      await blacklistToken(req.user);
+
       await redis.del(`user:profile:${req.user.id}`);
       await redis.del(`user:${req.user.id}`);
 
-      return res.json({ message: "Password updated" });
+      return res.json({ message: "Password updated. Silakan login kembali." });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -203,7 +237,14 @@ module.exports = {
         newAddress,
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -238,7 +279,14 @@ module.exports = {
 
       return res.json({ addresses });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -274,7 +322,14 @@ module.exports = {
 
       return res.json({ address });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -321,16 +376,14 @@ module.exports = {
         addr.jntAddressMappingId = mapping.id;
       }
 
-      if (is_primary === true) {
-        // kalau alamat ini SUDAH primary, tidak perlu reset
-        if (!addr.is_primary) {
-          await Address.update(
-            { is_primary: false },
-            { where: { userId: req.user.id } },
-          );
-          addr.is_primary = true;
-        }
-      } else if (is_primary === false) {
+      // Update is_primary — satu kali, tidak duplikat
+      if (is_primary === true && !addr.is_primary) {
+        await Address.update(
+          { is_primary: false },
+          { where: { userId: req.user.id } },
+        );
+        addr.is_primary = true;
+      } else if (is_primary === false && addr.is_primary) {
         addr.is_primary = false;
       }
 
@@ -341,15 +394,6 @@ module.exports = {
       addr.district = district || addr.district;
       addr.postal_code = postal_code || addr.postal_code;
       addr.details = details || addr.details;
-      if (is_primary === true && !addr.is_primary) {
-        await Address.update(
-          { is_primary: false },
-          { where: { userId: req.user.id } },
-        );
-        addr.is_primary = true;
-      } else if (is_primary === false) {
-        addr.is_primary = false;
-      }
 
       await addr.save();
 
@@ -363,7 +407,14 @@ module.exports = {
         mapping: mapping ? mapping : "Mapping unchanged",
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -401,7 +452,14 @@ module.exports = {
 
       return res.json({ message: "Address deleted" });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -423,7 +481,14 @@ module.exports = {
 
       res.json(users);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -445,7 +510,14 @@ module.exports = {
 
       res.json(user);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -467,7 +539,14 @@ module.exports = {
 
       res.json({ message: "User updated by admin", user });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -487,7 +566,14 @@ module.exports = {
 
       res.json({ message: "User deleted" });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 };

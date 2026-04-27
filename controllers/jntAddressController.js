@@ -30,7 +30,7 @@ module.exports = {
       });
     } catch (err) {
       console.error("Error fetching provinces:", err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -67,7 +67,7 @@ module.exports = {
       });
     } catch (err) {
       console.error("Error fetching cities:", err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -103,7 +103,7 @@ module.exports = {
       });
     } catch (err) {
       console.error("Error fetching districts:", err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -145,7 +145,7 @@ module.exports = {
       });
     } catch (err) {
       console.error("Error fetching mapping detail:", err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 };

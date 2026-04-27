@@ -31,7 +31,15 @@ module.exports = {
         );
       }
 
-      const filePath = path.join(__dirname, "..", customImage.image_url);
+      // prevent path traversal — resolve and verify the path stays inside uploads/
+      const allowedBase = path.resolve(path.join(__dirname, "../uploads"));
+      const filePath = path.resolve(
+        path.join(__dirname, "..", customImage.image_url),
+      );
+
+      if (!filePath.startsWith(allowedBase + path.sep)) {
+        return res.status(400).json({ message: "Invalid file path" });
+      }
 
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: "File not found" });
@@ -40,7 +48,14 @@ module.exports = {
       return res.download(filePath, path.basename(filePath));
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -82,7 +97,14 @@ module.exports = {
       });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
   updateProduct: async (req, res) => {
@@ -196,7 +218,14 @@ module.exports = {
       });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 
@@ -235,7 +264,14 @@ module.exports = {
 
       res.json({ message: "Image deleted successfully" });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
   deleteProduct: async (req, res) => {
@@ -268,7 +304,14 @@ module.exports = {
       return res.json({ message: "Product deleted successfully" });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      return res
+        .status(500)
+        .json({
+          message:
+            process.env.NODE_ENV !== "production"
+              ? err.message
+              : "Internal server error",
+        });
     }
   },
 };

@@ -34,7 +34,9 @@ exports.getOrderSummary = async (req, res) => {
           : req.body.buyNow;
     }
 
-    const address = await Address.findByPk(addressId, {
+    // ensure address belongs to the requesting user
+    const address = await Address.findOne({
+      where: { id: addressId, userId },
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
     });
     if (!address) return res.status(404).json({ message: "Address not found" });
@@ -54,19 +56,27 @@ exports.getOrderSummary = async (req, res) => {
         return res.status(404).json({ message: "Variant not found" });
       }
 
+      // enforce a sensible upper bound on quantity from client
+      const qty = parseInt(buyNow.quantity, 10);
+      if (!qty || qty < 1 || qty > 99) {
+        return res
+          .status(400)
+          .json({ message: "Quantity must be between 1 and 99" });
+      }
+
       const price = parseFloat(variant.price);
-      const itemSubtotal = price * buyNow.quantity;
+      const itemSubtotal = price * qty;
 
       items.push({
         id: null,
-        quantity: buyNow.quantity,
+        quantity: qty,
         price,
         subtotal: itemSubtotal,
         variantId: variant.id,
       });
 
       subtotal = itemSubtotal;
-      totalWeight = 0.1 * buyNow.quantity;
+      totalWeight = 0.1 * qty;
     } else {
       if (!selectedItemIds || selectedItemIds.length === 0) {
         return res
@@ -133,9 +143,12 @@ exports.getOrderSummary = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("[getOrderSummary]", error);
     return res.status(500).json({
-      message: "Failed to get order summary",
-      error: error.message,
+      message:
+        process.env.NODE_ENV !== "production"
+          ? error.message
+          : "Failed to get order summary",
     });
   }
 };
@@ -176,7 +189,9 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const address = await Address.findByPk(addressId, {
+    // ensure address belongs to the requesting user
+    const address = await Address.findOne({
+      where: { id: addressId, userId },
       include: [{ model: JntAddressMapping, as: "JntMapping" }],
     });
 
@@ -212,6 +227,13 @@ exports.createOrder = async (req, res) => {
         return res.status(404).json({ message: "Variant not found" });
       }
 
+      // Validasi quantity — sama ketatnya dengan getOrderSummary
+      const qty = parseInt(buyNow.quantity, 10);
+      if (!qty || qty < 1 || qty > 99) {
+        await t.rollback();
+        return res.status(400).json({ message: "Quantity must be between 1 and 99" });
+      }
+
       const mappedFiles = customMap.buyNow || [];
       const imagesForItem = mappedFiles
         .map((i) => customImageRecords[i]?.id)
@@ -221,15 +243,15 @@ exports.createOrder = async (req, res) => {
 
       items.push({
         productId: variant.productId,
-        quantity: buyNow.quantity,
+        quantity: qty,
         price,
         phoneTypeId: buyNow.phoneTypeId || null,
         variantId: variant.id,
         customImageId: imagesForItem,
       });
 
-      subtotal = price * buyNow.quantity;
-      totalWeight = 0.1 * buyNow.quantity;
+      subtotal = price * qty;
+      totalWeight = 0.1 * qty;
     } else if (selectedIds) {
       const cart = await Cart.findOne({
         where: { userId },
@@ -349,7 +371,12 @@ exports.createOrder = async (req, res) => {
     });
   } catch (err) {
     if (!t.finished) await t.rollback();
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({
+      message:
+        process.env.NODE_ENV !== "production"
+          ? err.message
+          : "Internal server error",
+    });
   }
 };
 
@@ -495,10 +522,12 @@ exports.trackOrder = async (req, res) => {
       tracking: trackingData,
     });
   } catch (error) {
-    console.error(error);
+    console.error("[trackOrder]", error);
     res.status(500).json({
-      message: "Failed to track order",
-      error: error.message,
+      message:
+        process.env.NODE_ENV !== "production"
+          ? error.message
+          : "Failed to track order",
     });
   }
 };
@@ -560,9 +589,12 @@ exports.getAllOrdersByAdmin = async (req, res) => {
       orders,
     });
   } catch (error) {
+    console.error("[getAllOrdersByAdmin]", error);
     return res.status(500).json({
-      message: "Failed to retrieve admin order list",
-      error: error.message,
+      message:
+        process.env.NODE_ENV !== "production"
+          ? error.message
+          : "Failed to retrieve admin order list",
     });
   }
 };
@@ -622,9 +654,12 @@ exports.getOrderByIdAdmin = async (req, res) => {
       order,
     });
   } catch (error) {
+    console.error("[getOrderByIdAdmin]", error);
     return res.status(500).json({
-      message: "Failed to retrieve order detail",
-      error: error.message,
+      message:
+        process.env.NODE_ENV !== "production"
+          ? error.message
+          : "Failed to retrieve order detail",
     });
   }
 };

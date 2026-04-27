@@ -41,7 +41,7 @@ module.exports = {
         data: products,
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -79,7 +79,7 @@ module.exports = {
         data: product,
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -119,7 +119,7 @@ module.exports = {
         images: uploadedImages,
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 };

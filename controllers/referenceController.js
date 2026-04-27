@@ -20,7 +20,7 @@ module.exports = {
 
       res.json({ message: "Phone types retrieved", data: types });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -33,7 +33,7 @@ module.exports = {
 
       res.status(201).json({ message: "Phone type created", data: type });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -52,7 +52,7 @@ module.exports = {
 
       res.json({ message: "Phone type updated", data: type });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -69,7 +69,7 @@ module.exports = {
 
       res.json({ message: "Phone type deleted" });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -91,7 +91,7 @@ module.exports = {
 
       res.json({ message: "Variants retrieved", data: variants });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
   createVariant: async (req, res) => {
@@ -103,7 +103,7 @@ module.exports = {
 
       res.status(201).json({ message: "Variant created", data: variant });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
   updateVariant: async (req, res) => {
@@ -123,7 +123,7 @@ module.exports = {
 
       res.json({ message: "Variant updated", data: variant });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 
@@ -139,7 +139,7 @@ module.exports = {
 
       res.json({ message: "Variant deleted" });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ message: process.env.NODE_ENV !== "production" ? err.message : "Internal server error" });
     }
   },
 };

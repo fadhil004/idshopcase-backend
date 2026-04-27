@@ -23,12 +23,10 @@ function generateSignature(requestId, timestamp, requestTarget, requestBody) {
     `Request-Target:${requestTarget}\n` +
     `Digest:${digest}`;
 
-  const signature = crypto
+  return crypto
     .createHmac("sha256", DOKU_SECRET_KEY)
     .update(signatureBase)
     .digest("base64");
-
-  return signature;
 }
 
 async function createDokuCheckout(order, user, requestId) {
@@ -53,44 +51,27 @@ async function createDokuCheckout(order, user, requestId) {
     },
   };
 
-  const signature = generateSignature(
-    requestId,
-    timestamp,
-    requestTarget,
-    body
-  );
-
   const headers = {
     "Client-Id": DOKU_CLIENT_ID,
     "Request-Id": requestId,
     "Request-Timestamp": timestamp,
-    Signature: `HMACSHA256=${signature}`,
+    Signature: `HMACSHA256=${generateSignature(requestId, timestamp, requestTarget, body)}`,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
 
-  console.log("==========  DOKU REQUEST ==========");
-  console.log("URL:", DOKU_MERCHANT_URL);
-  console.log("Headers:", JSON.stringify(headers, null, 2));
-  console.log("Body:", JSON.stringify(body, null, 2));
-  console.log("====================================");
+  // only log minimal info — never log credentials or full request bodies
+  console.log(`[DOKU] Creating checkout for order ${order.id}`);
 
   try {
     const response = await axios.post(DOKU_MERCHANT_URL, body, { headers });
-
-    console.log("========== DOKU RESPONSE SUCCESS ==========");
-    console.log("Status:", response.status);
-    console.log("Data:", JSON.stringify(response.data, null, 2));
-    console.log("=============================================");
-
+    console.log(`[DOKU] Checkout created successfully for order ${order.id}`);
     return response.data;
   } catch (error) {
-    console.error("========== DOKU RESPONSE ERROR ==========");
-    console.error("Status:", error.response?.status || "No status");
-    console.error("Data:", JSON.stringify(error.response?.data, null, 2));
-    console.error("Message:", error.message);
-    console.error("============================================");
-
+    console.error(
+      `[DOKU] Checkout failed for order ${order.id}:`,
+      error.response?.status || error.message,
+    );
     throw new Error("Failed to create DOKU Checkout session");
   }
 }

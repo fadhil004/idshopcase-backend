@@ -1,5 +1,29 @@
+# Dependencies
 /node_modules
-/config/config.json
+
+# Environment & secrets — JANGAN PERNAH commit file ini
 .env
+.env.*
+!.env.example
+SETUP.md
+
+# Database config 
+/config/config.json
+
+# Coverage reports
 /coverage
+
+# User-uploaded files
 /uploads
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build output
+/dist
+/build
