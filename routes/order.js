@@ -9,7 +9,7 @@ const {
   getAllOrdersByAdmin,
   getOrderByIdAdmin,
 } = require("../controllers/orderController");
-const { uploadCustoms } = require("../middlewares/upload");
+const { uploadCustoms, validateUploadedFiles } = require("../middlewares/upload");
 const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 
 router.get("/admin/", authenticate, authorizeAdmin, getAllOrdersByAdmin);
@@ -20,6 +20,7 @@ router.post(
   "/",
   authenticate,
   uploadCustoms.array("custom_images", 12),
+  validateUploadedFiles,
   createOrder,
 );
 router.get("/", authenticate, getOrders);

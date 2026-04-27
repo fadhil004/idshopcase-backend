@@ -1,6 +1,7 @@
 const { User, Address, JntAddressMapping } = require("../models");
 
 const { hashPassword, comparePassword } = require("../utils/hash");
+const { blacklistToken } = require("../middlewares/auth");
 const fs = require("fs");
 const path = require("path");
 const redis = require("../config/redis");
@@ -156,10 +157,13 @@ module.exports = {
       user.password = await hashPassword(newPassword);
       await user.save();
 
+      // Blacklist token saat ini — user harus login ulang dengan password baru
+      await blacklistToken(req.user);
+
       await redis.del(`user:profile:${req.user.id}`);
       await redis.del(`user:${req.user.id}`);
 
-      return res.json({ message: "Password updated" });
+      return res.json({ message: "Password updated. Silakan login kembali." });
     } catch (err) {
       return res
         .status(500)

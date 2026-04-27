@@ -3,7 +3,7 @@ const router = express.Router();
 const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 const productController = require("../controllers/productController");
 const adminProductController = require("../controllers/adminProductController");
-const { uploadProduct, uploadCustoms } = require("../middlewares/upload");
+const { uploadProduct, uploadCustoms, validateUploadedFiles } = require("../middlewares/upload");
 
 router.get("/", productController.getProducts);
 router.get("/:id", productController.getProductById);
@@ -13,6 +13,7 @@ router.post(
   "/custom/upload",
   authenticate,
   uploadCustoms.array("images", 12),
+  validateUploadedFiles,
   productController.uploadCustomImage,
 );
 
@@ -22,6 +23,7 @@ router.post(
   authenticate,
   authorizeAdmin,
   uploadProduct.array("images", 5),
+  validateUploadedFiles,
   adminProductController.createProduct,
 );
 router.get(
@@ -35,6 +37,7 @@ router.put(
   authenticate,
   authorizeAdmin,
   uploadProduct.array("images", 5),
+  validateUploadedFiles,
   adminProductController.updateProduct,
 );
 router.delete(

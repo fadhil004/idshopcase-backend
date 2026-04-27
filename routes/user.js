@@ -3,7 +3,7 @@ const router = express.Router();
 const userController = require("../controllers/userController");
 const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 const { uploadProfile } = require("../middlewares/upload");
-const { validate, schemas } = require("../middlewares/validate");
+const { validateUploadedFiles } = require("../middlewares/upload");
 
 // Profile
 router.get("/profile", authenticate, userController.getProfile);
@@ -11,6 +11,7 @@ router.put(
   "/profile",
   authenticate,
   uploadProfile.single("profile_picture"),
+  validateUploadedFiles,
   validate(schemas.updateProfile),
   userController.updateProfile
 );
