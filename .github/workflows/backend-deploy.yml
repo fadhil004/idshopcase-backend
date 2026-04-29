@@ -31,6 +31,7 @@ jobs:
             --exclude ".env.*" \
             --exclude "uploads" \
             --exclude "test.txt" \
+            --exclude "config/config.json" \
             -e "ssh -i ~/.ssh/id_ed25519" \
             ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/opt/idshopcase/idshopcase-backend/
 
