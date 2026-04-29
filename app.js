@@ -72,6 +72,13 @@ app.use(
 // Global rate limiter ────────────────────────────────────────────────────
 app.use(generalLimiter);
 
+// Health check (Exempt from CORS)
+app.get("/health", (req, res) =>
+  res.json({ status: "ok", timestamp: new Date().toISOString() }),
+);
+
+app.get("/", (req, res) => res.json({ message: "IDShopcase API running" }));
+
 // CORS — FRONTEND_URL
 const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(",").map((o) => o.trim())
@@ -109,13 +116,6 @@ app.use("/api/doku", webhookRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api/jnt-address", jntAddressRoutes);
 app.use("/api/reference", referenceRoutes);
-
-// Health check
-app.get("/health", (req, res) =>
-  res.json({ status: "ok", timestamp: new Date().toISOString() }),
-);
-
-app.get("/", (req, res) => res.json({ message: "IDShopcase API running" }));
 
 // 404 handler
 app.use((req, res) => {
