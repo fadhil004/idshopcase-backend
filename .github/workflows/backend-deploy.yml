@@ -20,29 +20,39 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts
 
-      - name: Upload backend to server via rsync
+      - name: Sync backend source to server
         run: |
-          rsync -avz --delete \
+          rsync -az --delete \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "node_modules" \
+            --exclude "coverage" \
             --exclude ".env" \
-            --exclude "config/config.json" \
+            --exclude ".env.*" \
             --exclude "uploads" \
-            -e "ssh -i ~/.ssh/id_ed25519" ./ \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/var/www/idshopcase/backend/
+            --exclude "test.txt" \
+            -e "ssh -i ~/.ssh/id_ed25519" \
+            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/opt/idshopcase/idshopcase-backend/
 
-      - name: SSH & Deploy
+      - name: Build & Deploy via Docker
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /var/www/idshopcase/backend/
+            set -e
+            cd /opt/idshopcase
 
-            npm install
-            npm install -g sequelize-cli
+            # Rebuild and restart only the backend container
+            docker compose build --no-cache backend
+            docker compose run --rm backend npx sequelize-cli db:migrate
+            docker compose up -d --no-deps backend
 
-            npx sequelize-cli db:migrate
+            # Reload nginx to pick up any upstream changes
+            docker compose exec nginx nginx -s reload || true
 
-            # Restart PM2 with NODE_ENV explicitly set to production
-            pm2 restart idshopcase-backend --update-env || pm2 start server.js --name idshopcase-backend --env production
-            pm2 save
+            # Cleanup
+            docker image prune -f
+
+            echo "✅ Backend deployed successfully"
