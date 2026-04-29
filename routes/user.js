@@ -4,6 +4,7 @@ const userController = require("../controllers/userController");
 const { authenticate, authorizeAdmin } = require("../middlewares/auth");
 const { uploadProfile } = require("../middlewares/upload");
 const { validateUploadedFiles } = require("../middlewares/upload");
+const { validate, schemas } = require("../middlewares/validate");
 
 // Profile
 router.get("/profile", authenticate, userController.getProfile);
